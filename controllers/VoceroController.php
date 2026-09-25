@@ -24,11 +24,10 @@ class VoceroController
 
         $idVocero     = $this->getIdVocero();
         $idAsignacion = (int)($_POST['id_asignacion'] ?? 0);
-        $nombreGrupo  = trim($_POST['nombre_grupo']   ?? '');
-        $aprendices   = $_POST['aprendices']          ?? [];
+        $aprendices   = $_POST['aprendices'] ?? [];
 
-        if (!$idAsignacion || empty($nombreGrupo)) {
-            $_SESSION['alert'] = ['icon'=>'warning','title'=>'Datos incompletos','text'=>'Escribe el nombre del grupo y selecciona al menos un integrante.'];
+        if (!$idAsignacion) {
+            $_SESSION['alert'] = ['icon'=>'warning','title'=>'Sin módulo asignado','text'=>'Tu ficha no tiene un módulo activo. Contacta al administrador.'];
             header("Location: ../views/dashboard/vocero_grupos.php"); exit;
         }
 
@@ -37,16 +36,32 @@ class VoceroController
             header("Location: ../views/dashboard/vocero_grupos.php"); exit;
         }
 
-        // ── Buscar el próximo turno libre de esta asignación ────────────
-        $modelTurno = new Turno($this->db);
-        $fechaLimpieza = $modelTurno->proximaFechaLibre($idAsignacion);
+        // Obtener id_ficha de la asignación
+        $stmtA = $this->db->prepare("SELECT id_ficha FROM asignaciones WHERE id_asignacion = :id LIMIT 1");
+        $stmtA->execute([':id' => $idAsignacion]);
+        $idFicha = (int)($stmtA->fetchColumn() ?: 0);
 
-        if (!$fechaLimpieza) {
-            $_SESSION['alert'] = ['icon'=>'error','title'=>'Sin turnos disponibles','text'=>'Ya no hay fechas de limpieza pendientes para asignar en este período. Todos los turnos ya tienen grupo.'];
+        $modelGrupo = new Grupo($this->db);
+
+        // Validar que ningún aprendiz ya esté en otro grupo de esta ficha
+        $ocupados = $modelGrupo->aprendicesOcupadosEnFicha($idFicha);
+        $repetidos = array_intersect(array_map('intval', $aprendices), $ocupados);
+        if (!empty($repetidos)) {
+            $_SESSION['alert'] = ['icon'=>'error','title'=>'Aprendiz ya asignado','text'=>'Uno o más aprendices ya pertenecen a otro grupo de esta ficha. Cada aprendiz solo puede estar en un grupo.'];
             header("Location: ../views/dashboard/vocero_grupos.php"); exit;
         }
 
-        $modelGrupo = new Grupo($this->db);
+        // Nombre automático
+        $nombreGrupo = $modelGrupo->proximoNombreGrupo($idVocero);
+
+        // Próximo turno libre
+        $modelTurno    = new Turno($this->db);
+        $fechaLimpieza = $modelTurno->proximaFechaLibre($idAsignacion);
+
+        if (!$fechaLimpieza) {
+            $_SESSION['alert'] = ['icon'=>'error','title'=>'Sin turnos disponibles','text'=>'Ya no hay fechas de limpieza pendientes para asignar. Todos los turnos ya tienen grupo.'];
+            header("Location: ../views/dashboard/vocero_grupos.php"); exit;
+        }
 
         $resultado = $modelGrupo->crear([
             'id_asignacion'  => $idAsignacion,
@@ -56,18 +71,16 @@ class VoceroController
         ], $aprendices);
 
         if ($resultado) {
-            // Vincular este grupo al turno que le corresponde
             $modelTurno->asignarGrupoAlTurno($idAsignacion, $fechaLimpieza, $resultado);
-
             $modelGrupo->registrarHistorial(
                 $resultado,
-                "Grupo creado con " . count($aprendices) . " integrante(s). Fecha asignada automáticamente: {$fechaLimpieza}.",
+                "Grupo '{$nombreGrupo}' creado con " . count($aprendices) . " integrante(s). Fecha: {$fechaLimpieza}.",
                 $_SESSION['usuario']['id_usuario']
             );
             $_SESSION['alert'] = [
                 'icon'  => 'success',
                 'title' => '¡Grupo registrado!',
-                'text'  => 'Fecha de limpieza asignada automáticamente: ' . date('d/m/Y', strtotime($fechaLimpieza)) . '.',
+                'text'  => "{$nombreGrupo} · Fecha de limpieza: " . date('d/m/Y', strtotime($fechaLimpieza)) . '.',
             ];
         } else {
             $_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'No se pudo registrar el grupo. Intenta de nuevo.'];
@@ -81,37 +94,62 @@ class VoceroController
     {
         $this->requireVocero();
 
-        $idGrupo       = (int)($_POST['id_grupo']       ?? 0);
-        $nombreGrupo   = trim($_POST['nombre_grupo']    ?? '');
-        $fechaLimpieza = trim($_POST['fecha_limpieza']  ?? '');
-        $aprendices    = $_POST['aprendices']           ?? [];
+        $idGrupo    = (int)($_POST['id_grupo']  ?? 0);
+        $aprendices = $_POST['aprendices']      ?? [];
 
-        if (!$idGrupo || empty($nombreGrupo) || empty($fechaLimpieza) || empty($aprendices)) {
-            $_SESSION['alert'] = ['icon'=>'warning','title'=>'Datos incompletos','text'=>'Completa todos los campos y agrega al menos un integrante.'];
+        if (!$idGrupo || empty($aprendices)) {
+            $_SESSION['alert'] = ['icon'=>'warning','title'=>'Datos incompletos','text'=>'Selecciona al menos un integrante.'];
             header("Location: ../views/dashboard/vocero_grupos.php"); exit;
         }
 
         $modelGrupo = new Grupo($this->db);
         $grupo      = $modelGrupo->obtenerPorId($idGrupo);
 
-        // Verificar que el plazo no haya vencido
-        if ($grupo && strtotime($grupo['fecha_limite_evidencia']) < time()) {
-            $_SESSION['alert'] = ['icon'=>'error','title'=>'Plazo vencido','text'=>'El plazo de modificación para este grupo ha expirado. Contacta al administrador.'];
+        if (!$grupo) {
+            $_SESSION['alert'] = ['icon'=>'error','title'=>'No encontrado','text'=>'Grupo no encontrado.'];
             header("Location: ../views/dashboard/vocero_grupos.php"); exit;
         }
 
+        // Validar que ningún aprendiz nuevo ya esté en otro grupo de la ficha
+        $idFicha = (int)($grupo['id_ficha'] ?? 0);
+        if ($idFicha) {
+            $ocupados  = $modelGrupo->aprendicesOcupadosEnFicha($idFicha, $idGrupo);
+            $repetidos = array_intersect(array_map('intval', $aprendices), $ocupados);
+            if (!empty($repetidos)) {
+                $_SESSION['alert'] = ['icon'=>'error','title'=>'Aprendiz ya asignado','text'=>'Uno o más aprendices ya pertenecen a otro grupo de esta ficha.'];
+                header("Location: ../views/dashboard/vocero_grupos.php"); exit;
+            }
+        }
+
+        // Si la fecha ya pasó, reasignar automáticamente al próximo turno libre
+        $fechaLimpieza = $grupo['fecha_limpieza'];
+        if (strtotime($fechaLimpieza) < strtotime('today')) {
+            $modelTurno    = new Turno($this->db);
+            $idAsignacion  = (int)$grupo['id_asignacion'];
+            $nuevaFecha    = $modelTurno->proximaFechaLibre($idAsignacion);
+            if ($nuevaFecha) {
+                $fechaLimpieza = $nuevaFecha;
+                // Vincular turno al grupo
+                $modelTurno->asignarGrupoAlTurno($idAsignacion, $nuevaFecha, $idGrupo);
+            }
+        }
+
         $resultado = $modelGrupo->actualizar($idGrupo, [
-            'nombre_grupo'   => $nombreGrupo,
+            'nombre_grupo'   => $grupo['nombre_grupo'],
             'fecha_limpieza' => $fechaLimpieza,
         ], $aprendices);
 
         if ($resultado) {
             $modelGrupo->registrarHistorial(
                 $idGrupo,
-                "Grupo editado: nombre='{$nombreGrupo}', integrantes actualizados.",
+                "Grupo editado: integrantes actualizados. Fecha: {$fechaLimpieza}.",
                 $_SESSION['usuario']['id_usuario']
             );
-            $_SESSION['alert'] = ['icon'=>'success','title'=>'Grupo actualizado','text'=>'Los cambios se guardaron correctamente.'];
+            $_SESSION['alert'] = [
+                'icon'  => 'success',
+                'title' => 'Grupo actualizado',
+                'text'  => 'Integrantes actualizados. Próxima limpieza: ' . date('d/m/Y', strtotime($fechaLimpieza)) . '.',
+            ];
         } else {
             $_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'No se pudo actualizar el grupo.'];
         }
@@ -125,25 +163,29 @@ class VoceroController
         $this->requireVocero();
 
         $idGrupo    = (int)($_POST['id_grupo'] ?? 0);
+        $idVocero   = $this->getIdVocero();
         $modelGrupo = new Grupo($this->db);
         $resultado  = $modelGrupo->eliminar($idGrupo);
 
         if ($resultado) {
-            $_SESSION['alert'] = ['icon'=>'success','title'=>'Grupo eliminado','text'=>'El grupo fue eliminado correctamente.'];
+            // Renumerar los grupos restantes para que queden consecutivos
+            $modelGrupo->renumerarGrupos($idVocero);
+            $_SESSION['alert'] = ['icon'=>'success','title'=>'Grupo eliminado','text'=>'El grupo fue eliminado y los demás grupos fueron renumerados.'];
         } else {
-            $_SESSION['alert'] = ['icon'=>'error','title'=>'No se puede eliminar','text'=>'Este grupo tiene evidencias registradas y no puede ser eliminado.'];
+            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'No se pudo eliminar el grupo.'];
         }
 
         header("Location: ../views/dashboard/vocero_grupos.php"); exit;
     }
 
-    // ── SUBIR EVIDENCIA ────────────────────────────────────────────────────
+    // ── SUBIR EVIDENCIA (flujo antiguo por grupo — mantiene compatibilidad) ──
     public function subirEvidencia(): void
     {
         $this->requireVocero();
 
-        $idGrupo   = (int)($_POST['id_grupo'] ?? 0);
-        $idVocero  = $this->getIdVocero();
+        $idGrupo  = (int)($_POST['id_grupo'] ?? 0);
+        $idVocero = $this->getIdVocero();
+        $modelEv  = new Evidencia($this->db);
 
         $modelGrupo = new Grupo($this->db);
         $grupo      = $modelGrupo->obtenerPorId($idGrupo);
@@ -159,57 +201,60 @@ class VoceroController
             header("Location: ../views/dashboard/vocero_evidencias.php"); exit;
         }
 
-        // Verificar archivo
-        if (empty($_FILES['evidencia']['name'])) {
-            $_SESSION['alert'] = ['icon'=>'warning','title'=>'Sin archivo','text'=>'Selecciona una imagen para subir.'];
+        // Verificar que ya no tenga el par completo
+        if ($modelEv->grupoCompleto($idGrupo)) {
+            $_SESSION['alert'] = ['icon'=>'warning','title'=>'Ya completado','text'=>'Este grupo ya tiene las dos evidencias (antes y después) registradas.'];
             header("Location: ../views/dashboard/vocero_evidencias.php"); exit;
         }
 
-        $archivo     = $_FILES['evidencia'];
-        $extensiones = ['jpg', 'jpeg', 'png'];
-        $ext         = strtolower(pathinfo($archivo['name'], PATHINFO_EXTENSION));
-        $maxSize     = 10 * 1024 * 1024; // 10 MB
-
-        if (!in_array($ext, $extensiones)) {
-            $_SESSION['alert'] = ['icon'=>'error','title'=>'Formato no permitido','text'=>'Solo se aceptan archivos JPG, JPEG o PNG.'];
-            header("Location: ../views/dashboard/vocero_evidencias.php"); exit;
-        }
-
-        if ($archivo['size'] > $maxSize) {
-            $_SESSION['alert'] = ['icon'=>'error','title'=>'Archivo muy grande','text'=>'El archivo supera el límite de 10 MB.'];
-            header("Location: ../views/dashboard/vocero_evidencias.php"); exit;
-        }
-
-        $carpeta    = __DIR__ . '/../public/uploads/evidencias/';
+        $carpeta = __DIR__ . '/../public/uploads/evidencias/';
         if (!is_dir($carpeta)) mkdir($carpeta, 0755, true);
+        $maxSize = 10 * 1024 * 1024;
 
-        $nombreArchivo = 'ev_' . $idGrupo . '_' . uniqid() . '.' . $ext;
-        $rutaFisica    = $carpeta . $nombreArchivo;
-        $rutaRelativa  = 'uploads/evidencias/' . $nombreArchivo;
+        // ── Helper para validar y mover un archivo ──────────────────────────
+        $procesarArchivo = function(array $file, string $prefijo) use ($carpeta, $maxSize): array|false {
+            if (empty($file['name']) || $file['error'] !== UPLOAD_ERR_OK) return false;
+            $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            if (!in_array($ext, ['jpg','jpeg','png'])) return false;
+            if ($file['size'] > $maxSize) return false;
+            $nombre   = $prefijo . '_' . uniqid() . '.' . $ext;
+            $fisica   = $carpeta . $nombre;
+            $relativa = 'uploads/evidencias/' . $nombre;
+            return move_uploaded_file($file['tmp_name'], $fisica)
+                ? ['nombre' => $nombre, 'ruta' => $relativa]
+                : false;
+        };
 
-        if (!move_uploaded_file($archivo['tmp_name'], $rutaFisica)) {
-            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error al subir','text'=>'No se pudo guardar el archivo. Intenta de nuevo.'];
+        $fAntes   = $_FILES['foto_antes']   ?? [];
+        $fDespues = $_FILES['foto_despues'] ?? [];
+
+        if (empty($fAntes['name']) || empty($fDespues['name'])) {
+            $_SESSION['alert'] = ['icon'=>'warning','title'=>'Fotos incompletas','text'=>'Debes subir las dos fotos: antes y después de la limpieza.'];
             header("Location: ../views/dashboard/vocero_evidencias.php"); exit;
         }
 
-        $modelEv = new Evidencia($this->db);
-        $resultado = $modelEv->registrar([
-            'id_grupo'       => $idGrupo,
-            'id_vocero'      => $idVocero,
-            'nombre_archivo' => $nombreArchivo,
-            'ruta_archivo'   => $rutaRelativa,
-        ]);
+        $antes   = $procesarArchivo($fAntes,   'ev_g' . $idGrupo . '_antes');
+        $despues = $procesarArchivo($fDespues, 'ev_g' . $idGrupo . '_despues');
 
-        if ($resultado) {
-            $_SESSION['alert'] = ['icon'=>'success','title'=>'¡Evidencia enviada!','text'=>'La evidencia fue registrada correctamente el ' . date('d/m/Y H:i') . '.'];
-        } else {
-            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'No se pudo registrar la evidencia en el sistema.'];
+        if (!$antes || !$despues) {
+            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error al subir','text'=>'Verifica que ambas fotos sean JPG/PNG y no superen 10 MB.'];
+            header("Location: ../views/dashboard/vocero_evidencias.php"); exit;
+        }
+
+        try {
+            $modelEv->registrar(['id_grupo' => $idGrupo, 'id_vocero' => $idVocero,
+                'tipo' => 'antes',   'nombre_archivo' => $antes['nombre'],   'ruta_archivo' => $antes['ruta']]);
+            $modelEv->registrar(['id_grupo' => $idGrupo, 'id_vocero' => $idVocero,
+                'tipo' => 'despues', 'nombre_archivo' => $despues['nombre'], 'ruta_archivo' => $despues['ruta']]);
+            $_SESSION['alert'] = ['icon'=>'success','title'=>'¡Evidencias enviadas!','text'=>'Las fotos antes y después fueron registradas el ' . date('d/m/Y H:i') . '.'];
+        } catch (Exception $e) {
+            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'No se pudieron registrar las evidencias.'];
         }
 
         header("Location: ../views/dashboard/vocero_evidencias.php"); exit;
     }
 
-    // ── SUBIR EVIDENCIA CON TURNO ──────────────────────────────────────────
+    // ── SUBIR EVIDENCIA CON TURNO (2 fotos obligatorias: antes + después) ───
     public function subirEvidenciaTurno(): void
     {
         $this->requireVocero();
@@ -237,51 +282,59 @@ class VoceroController
             header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;
         }
 
-        // Verificar que no tenga ya evidencia
-        $stmtE = $this->db->prepare("SELECT id_evidencia FROM evidencias WHERE id_turno = :id LIMIT 1");
-        $stmtE->execute([':id' => $idTurno]);
-        if ($stmtE->fetch()) {
-            $_SESSION['alert'] = ['icon'=>'warning','title'=>'Ya registrada','text'=>'Ya existe una evidencia para este turno.'];
+        // Verificar que el turno no tenga ya el par completo
+        $modelEv = new Evidencia($this->db);
+        if ($modelEv->turnoCompleto($idTurno)) {
+            $_SESSION['alert'] = ['icon'=>'warning','title'=>'Ya completado','text'=>'Ya existen las dos evidencias (antes y después) para este turno.'];
             header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;
         }
 
-        // Validar archivo
-        if (empty($_FILES['evidencia']['name'])) {
-            $_SESSION['alert'] = ['icon'=>'warning','title'=>'Sin archivo','text'=>'Selecciona una imagen.'];
+        // ── Validar que ambas fotos estén presentes ─────────────────────────
+        $fAntes   = $_FILES['foto_antes']   ?? [];
+        $fDespues = $_FILES['foto_despues'] ?? [];
+
+        if (empty($fAntes['name'])   || ($fAntes['error']   ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK ||
+            empty($fDespues['name']) || ($fDespues['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            $_SESSION['alert'] = ['icon'=>'warning','title'=>'Fotos incompletas','text'=>'Debes subir las dos fotos obligatorias: la del ANTES y la del DESPUÉS de la limpieza.'];
             header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;
         }
 
-        $archivo  = $_FILES['evidencia'];
-        $ext      = strtolower(pathinfo($archivo['name'], PATHINFO_EXTENSION));
-        $maxSize  = 10 * 1024 * 1024;
-
-        if (!in_array($ext, ['jpg','jpeg','png'])) {
-            $_SESSION['alert'] = ['icon'=>'error','title'=>'Formato no válido','text'=>'Solo JPG, JPEG o PNG.'];
-            header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;
-        }
-        if ($archivo['size'] > $maxSize) {
-            $_SESSION['alert'] = ['icon'=>'error','title'=>'Archivo muy grande','text'=>'Máximo 10 MB.'];
-            header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;
-        }
-
+        $maxSize = 10 * 1024 * 1024;
+        $extsOk  = ['jpg','jpeg','png'];
         $carpeta = __DIR__ . '/../public/uploads/evidencias/';
         if (!is_dir($carpeta)) mkdir($carpeta, 0755, true);
 
-        $nombreArchivo = 'ev_t' . $idTurno . '_' . uniqid() . '.' . $ext;
-        $rutaFisica    = $carpeta . $nombreArchivo;
-        $rutaRelativa  = 'uploads/evidencias/' . $nombreArchivo;
+        // ── Helper para validar y mover un archivo ──────────────────────────
+        $procesarArchivo = function(array $file, string $prefijo) use ($carpeta, $maxSize, $extsOk, $idTurno): array|false {
+            $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            if (!in_array($ext, $extsOk)) return false;
+            if ($file['size'] > $maxSize)  return false;
+            $nombre   = 'ev_t' . $idTurno . '_' . $prefijo . '_' . uniqid() . '.' . $ext;
+            $fisica   = $carpeta . $nombre;
+            $relativa = 'uploads/evidencias/' . $nombre;
+            return move_uploaded_file($file['tmp_name'], $fisica)
+                ? ['nombre' => $nombre, 'ruta' => $relativa]
+                : false;
+        };
 
-        if (!move_uploaded_file($archivo['tmp_name'], $rutaFisica)) {
-            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error al subir','text'=>'No se pudo guardar el archivo.'];
+        $antes   = $procesarArchivo($fAntes,   'antes');
+        $despues = $procesarArchivo($fDespues, 'despues');
+
+        if (!$antes) {
+            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error en foto "Antes"','text'=>'Verifica que sea JPG/PNG y no supere 10 MB.'];
+            header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;
+        }
+        if (!$despues) {
+            // Limpiar la foto antes ya movida
+            @unlink(__DIR__ . '/../public/uploads/evidencias/' . $antes['nombre']);
+            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error en foto "Después"','text'=>'Verifica que sea JPG/PNG y no supere 10 MB.'];
             header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;
         }
 
-        // Si no hay grupo, usar el grupo del turno
+        // ── Resolver id_grupo ───────────────────────────────────────────────
         if (!$idGrupo && $turno['id_grupo']) {
             $idGrupo = (int)$turno['id_grupo'];
         }
-
-        // Si aún no hay grupo, buscar cualquier grupo del vocero activo
         if (!$idGrupo) {
             $stmtG = $this->db->prepare(
                 "SELECT g.id_grupo FROM grupos g
@@ -290,7 +343,7 @@ class VoceroController
                  ORDER BY g.fecha_creacion DESC LIMIT 1"
             );
             $stmtG->execute([':idv' => $idVocero]);
-            $rowG = $stmtG->fetch(PDO::FETCH_ASSOC);
+            $rowG    = $stmtG->fetch(PDO::FETCH_ASSOC);
             $idGrupo = $rowG ? (int)$rowG['id_grupo'] : 0;
         }
 
@@ -299,83 +352,155 @@ class VoceroController
             header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;
         }
 
-        // Registrar evidencia con id_turno
+        // ── Registrar ambas fotos ───────────────────────────────────────────
         try {
-            $stmt = $this->db->prepare(
-                "INSERT INTO evidencias (id_grupo, id_vocero, id_turno, nombre_archivo, ruta_archivo, observaciones)
-                 VALUES (:grupo, :vocero, :turno, :nombre, :ruta, :obs)"
-            );
-            $stmt->execute([
-                ':grupo'  => $idGrupo,
-                ':vocero' => $idVocero,
-                ':turno'  => $idTurno,
-                ':nombre' => $nombreArchivo,
-                ':ruta'   => $rutaRelativa,
-                ':obs'    => $obs ?: null,
+            $idEvAntes   = $modelEv->registrar([
+                'id_grupo'       => $idGrupo,
+                'id_vocero'      => $idVocero,
+                'id_turno'       => $idTurno,
+                'tipo'           => 'antes',
+                'nombre_archivo' => $antes['nombre'],
+                'ruta_archivo'   => $antes['ruta'],
+                'observaciones'  => $obs ?: null,
             ]);
-            // Marcar turno como cumplido
-            (new Turno($this->db))->marcarCumplido($idTurno);
+            $idEvDespues = $modelEv->registrar([
+                'id_grupo'       => $idGrupo,
+                'id_vocero'      => $idVocero,
+                'id_turno'       => $idTurno,
+                'tipo'           => 'despues',
+                'nombre_archivo' => $despues['nombre'],
+                'ruta_archivo'   => $despues['ruta'],
+                'observaciones'  => $obs ?: null,
+            ]);
 
-            // Segunda foto (opcional)
-            if (!empty($_FILES['evidencia2']['name']) && $_FILES['evidencia2']['error'] === UPLOAD_ERR_OK) {
-                $archivo2  = $_FILES['evidencia2'];
-                $ext2      = strtolower(pathinfo($archivo2['name'], PATHINFO_EXTENSION));
-                if (in_array($ext2, ['jpg','jpeg','png']) && $archivo2['size'] <= $maxSize) {
-                    $nombreArchivo2 = 'ev_t' . $idTurno . '_2_' . uniqid() . '.' . $ext2;
-                    $rutaFisica2    = $carpeta . $nombreArchivo2;
-                    $rutaRelativa2  = 'uploads/evidencias/' . $nombreArchivo2;
-                    if (move_uploaded_file($archivo2['tmp_name'], $rutaFisica2)) {
-                        $this->db->prepare(
-                            "INSERT INTO evidencias (id_grupo, id_vocero, id_turno, nombre_archivo, ruta_archivo, observaciones)
-                             VALUES (:grupo, :vocero, :turno, :nombre, :ruta, :obs)"
-                        )->execute([
-                            ':grupo'  => $idGrupo,
-                            ':vocero' => $idVocero,
-                            ':turno'  => $idTurno,
-                            ':nombre' => $nombreArchivo2,
-                            ':ruta'   => $rutaRelativa2,
-                            ':obs'    => ($obs ? $obs . ' (foto 2)' : 'foto 2'),
+            // ── Snapshot de integrantes del grupo en este momento ───────────
+            if ($idEvAntes || $idEvDespues) {
+                $stmtInts = $this->db->prepare(
+                    "SELECT ap.id_aprendiz, ap.nombres, ap.apellidos, ap.documento
+                     FROM grupo_integrantes gi
+                     JOIN aprendices ap ON ap.id_aprendiz = gi.id_aprendiz
+                     WHERE gi.id_grupo = :g"
+                );
+                $stmtInts->execute([':g' => $idGrupo]);
+                $ints = $stmtInts->fetchAll(PDO::FETCH_ASSOC);
+
+                $insSnap = $this->db->prepare(
+                    "INSERT INTO evidencia_integrantes
+                        (id_evidencia, id_aprendiz, nombres, apellidos, documento)
+                     VALUES (:ev, :ap, :nom, :ape, :doc)"
+                );
+                foreach ($ints as $ap) {
+                    foreach (array_filter([$idEvAntes, $idEvDespues]) as $idEv) {
+                        $insSnap->execute([
+                            ':ev'  => $idEv,
+                            ':ap'  => $ap['id_aprendiz'],
+                            ':nom' => $ap['nombres'],
+                            ':ape' => $ap['apellidos'],
+                            ':doc' => $ap['documento'],
                         ]);
                     }
                 }
             }
 
-            $_SESSION['alert'] = ['icon'=>'success','title'=>'¡Evidencia enviada!','text'=>'La evidencia fue registrada correctamente el ' . date('d/m/Y H:i') . '.'];
+            // Marcar turno como cumplido y avanzar al siguiente turno en el ciclo
+            $modelTurnoInst = new Turno($this->db);
+            $modelTurnoInst->marcarCumplido($idTurno);
+            $modelTurnoInst->avanzarTurnoGrupo($idTurno, $idGrupo);
+
+            $_SESSION['alert'] = ['icon'=>'success','title'=>'¡Evidencias enviadas!','text'=>'Las fotos antes y después de la limpieza fueron registradas el ' . date('d/m/Y H:i') . '.'];
         } catch (Exception $e) {
-            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'No se pudo registrar la evidencia.'];
+            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'No se pudieron registrar las evidencias. Intenta de nuevo.'];
         }
 
         header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;
     }
 
-    // ── GET EVIDENCIA (JSON) ────────────────────────────────────────────────
+    // ── GET EVIDENCIA POR TURNO (JSON para el calendario) ───────────────────
+    public function getEvidenciaTurno(): void
+    {
+        header('Content-Type: application/json');
+        $this->requireVocero();
+
+        $idTurno = (int)($_GET['id_turno'] ?? 0);
+        if (!$idTurno) { echo json_encode(['par' => null]); exit; }
+
+        $stmt = $this->db->prepare(
+            "SELECT tipo, ruta_archivo AS ruta, observaciones
+             FROM evidencias
+             WHERE id_turno = :id
+               AND tipo IN ('antes','despues')
+             ORDER BY tipo ASC"
+        );
+        $stmt->execute([':id' => $idTurno]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $par = ['antes' => null, 'despues' => null];
+        $obs = '';
+        foreach ($rows as $r) {
+            $par[$r['tipo']] = ['ruta' => $r['ruta']];
+            if ($r['observaciones']) $obs = $r['observaciones'];
+        }
+
+        echo json_encode(['par' => $par, 'observaciones' => $obs]);
+        exit;
+    }
+
+    // ── GET EVIDENCIA (JSON) — devuelve el par antes/después de un grupo ────
     public function getEvidencia(): void
     {
         header('Content-Type: application/json');
         $this->requireVocero();
+
         $idGrupo = (int)($_GET['id_grupo'] ?? 0);
         $modelEv = new Evidencia($this->db);
-        $ev = $modelEv->obtenerPorGrupo($idGrupo);
-        if ($ev) {
-            $stmt = $this->db->prepare(
-                "SELECT m.nombre AS modulo, g.nombre_grupo AS grupo, e.fecha_subida, e.ruta_archivo
-                 FROM evidencias e
-                 JOIN grupos g ON g.id_grupo = e.id_grupo
-                 JOIN asignaciones a ON a.id_asignacion = g.id_asignacion
-                 JOIN modulos m ON m.id_modulo = a.id_modulo
-                 WHERE e.id_evidencia = :id LIMIT 1"
-            );
-            $stmt->execute([':id' => $ev['id_evidencia']]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            echo json_encode([
-                'ruta'   => $row['ruta_archivo'],
-                'grupo'  => $row['grupo'],
-                'modulo' => $row['modulo'],
-                'fecha'  => date('d/m/Y H:i', strtotime($row['fecha_subida']))
-            ]);
-        } else {
-            echo json_encode(['ruta' => null]);
+        $rows    = $modelEv->obtenerTodasPorGrupo($idGrupo);
+
+        if (empty($rows)) {
+            echo json_encode(['par' => null]); exit;
         }
+
+        // Buscar datos del módulo/grupo en la primera fila
+        $stmt = $this->db->prepare(
+            "SELECT m.nombre AS modulo, g.nombre_grupo AS grupo, g.fecha_limpieza
+             FROM grupos g
+             JOIN asignaciones a ON a.id_asignacion = g.id_asignacion
+             JOIN modulos m ON m.id_modulo = a.id_modulo
+             WHERE g.id_grupo = :id LIMIT 1"
+        );
+        $stmt->execute([':id' => $idGrupo]);
+        $meta = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $par = ['antes' => null, 'despues' => null];
+        foreach ($rows as $r) {
+            $tipo = $r['tipo'] ?? 'antes';
+            $par[$tipo] = [
+                'ruta'  => $r['ruta_archivo'],
+                'fecha' => date('d/m/Y H:i', strtotime($r['fecha_subida'])),
+            ];
+        }
+
+        echo json_encode([
+            'par'    => $par,
+            'grupo'  => $meta['grupo']          ?? '',
+            'modulo' => $meta['modulo']          ?? '',
+            'fecha'  => $meta['fecha_limpieza']
+                        ? date('d/m/Y', strtotime($meta['fecha_limpieza']))
+                        : '',
+        ]);
+        exit;
+    }
+
+    // ── GET INTEGRANTES IDS (JSON para edición) ─────────────────────────────
+    public function getIntegrantesIds(): void
+    {
+        header('Content-Type: application/json');
+        $this->requireVocero();
+        $idGrupo = (int)($_GET['id_grupo'] ?? 0);
+        $stmt    = $this->db->prepare(
+            "SELECT id_aprendiz FROM grupo_integrantes WHERE id_grupo = :id"
+        );
+        $stmt->execute([':id' => $idGrupo]);
+        echo json_encode(array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'id_aprendiz'));
         exit;
     }
 
@@ -410,7 +535,9 @@ if (basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'])) {
         'eliminar_grupo'  => $controller->eliminarGrupo(),
         'subir_evidencia' => $controller->subirEvidencia(),
         'subir_evidencia_turno' => $controller->subirEvidenciaTurno(),
-        'get_evidencia'   => $controller->getEvidencia(),
+        'get_evidencia'         => $controller->getEvidencia(),
+        'get_evidencia_turno'   => $controller->getEvidenciaTurno(),
+        'get_integrantes_ids'   => $controller->getIntegrantesIds(),
         default           => header("Location: ../views/dashboard/vocero_dashboard.php"),
     };
 }

@@ -14,15 +14,18 @@ class Modulo
     {
         $stmt = $this->conn->query(
             "SELECT m.*,
-                    a.id_asignacion, a.estado AS estado_asignacion,
-                    a.fecha_limite_evidencia,
-                    f.numero_ficha,
-                    v.nombres AS vocero_nombres, v.apellidos AS vocero_apellidos
+                    ANY_VALUE(a.id_asignacion)           AS id_asignacion,
+                    ANY_VALUE(a.estado)                  AS estado_asignacion,
+                    ANY_VALUE(a.fecha_limite_evidencia)  AS fecha_limite_evidencia,
+                    ANY_VALUE(f.numero_ficha)            AS numero_ficha,
+                    ANY_VALUE(v.nombres)                 AS vocero_nombres,
+                    ANY_VALUE(v.apellidos)               AS vocero_apellidos
              FROM {$this->tabla} m
              LEFT JOIN asignaciones a ON a.id_modulo = m.id_modulo AND a.estado = 'Activa'
              LEFT JOIN fichas   f ON f.id_ficha    = a.id_ficha
              LEFT JOIN voceros  v ON v.id_ficha    = a.id_ficha AND v.activo = 1
              WHERE m.activo = 1
+             GROUP BY m.id_modulo
              ORDER BY m.nombre"
         );
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -138,18 +141,21 @@ class Modulo
         $whereStr = implode(' AND ', $where);
 
         $stmt = $this->conn->prepare(
-            "SELECT a.*, m.nombre AS nombre_modulo,
+            "SELECT a.*,
+                    m.nombre AS nombre_modulo,
                     f.numero_ficha, p.nombre AS nombre_programa,
-                    v.nombres AS vocero_nombres, v.apellidos AS vocero_apellidos,
+                    ANY_VALUE(v.nombres)   AS vocero_nombres,
+                    ANY_VALUE(v.apellidos) AS vocero_apellidos,
                     (SELECT COUNT(*) FROM evidencias e
                      JOIN grupos g ON g.id_grupo = e.id_grupo
                      WHERE g.id_asignacion = a.id_asignacion) AS total_evidencias
              FROM asignaciones a
-             JOIN modulos  m ON m.id_modulo   = a.id_modulo
-             JOIN fichas   f ON f.id_ficha    = a.id_ficha
+             JOIN modulos   m ON m.id_modulo   = a.id_modulo
+             JOIN fichas    f ON f.id_ficha    = a.id_ficha
              JOIN programas p ON p.id_programa = f.id_programa
              LEFT JOIN voceros v ON v.id_ficha = a.id_ficha AND v.activo = 1
              WHERE {$whereStr}
+             GROUP BY a.id_asignacion
              ORDER BY a.fecha_limite_evidencia DESC"
         );
         $stmt->execute($params);

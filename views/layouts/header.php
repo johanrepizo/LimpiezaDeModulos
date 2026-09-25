@@ -1,6 +1,14 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) session_start();
 
+// Evitar que el navegador cachee las páginas protegidas.
+// Así el botón "atrás" siempre hace una nueva petición al servidor
+// y el guard de sesión se ejecuta correctamente.
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
+
 if (!isset($_SESSION['usuario'])) {
     header("Location: ../usuarios/login.php");
     exit;
@@ -177,6 +185,18 @@ $_countNoti   = $_modelNoti->contarNoLeidas($usuario['id_usuario']);
 
         @media (max-width: 768px) { #sidebar { display: none; } }
     </style>
+    <script>
+        // Bloquear el bfcache (Back-Forward Cache) de los navegadores modernos.
+        // Cuando el usuario presiona "atrás" después de cerrar sesión, el navegador
+        // normalmente restaura la página desde memoria sin consultar el servidor.
+        // pageshow se dispara tanto en carga normal como en restauración desde bfcache.
+        window.addEventListener('pageshow', function(e) {
+            if (e.persisted) {
+                // La página fue restaurada desde bfcache — forzar recarga del servidor
+                window.location.reload();
+            }
+        });
+    </script>
 </head>
 <body>
 <div class="d-flex" style="min-height:100vh;">

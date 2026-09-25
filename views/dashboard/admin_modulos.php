@@ -161,11 +161,12 @@ require_once __DIR__ . '/../layouts/header.php';
                                             title="Editar asignación">
                                         <i class="fas fa-pen"></i>
                                     </button>
-                                    <form action="../../controllers/AdminController.php" method="POST" class="d-inline">
+                                    <form action="../../controllers/AdminController.php" method="POST"
+                                          class="d-inline" id="form-cancel-<?= $a['id_asignacion'] ?>">
                                         <input type="hidden" name="accion"        value="cancelar_asignacion">
                                         <input type="hidden" name="id_asignacion" value="<?= $a['id_asignacion'] ?>">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger"
-                                                onclick="return confirm('¿Cancelar esta asignación? Se eliminarán los turnos pendientes.')"
+                                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                                onclick="confirmarCancelarAsignacion(<?= $a['id_asignacion'] ?>)"
                                                 title="Cancelar asignación">
                                             <i class="fas fa-ban"></i>
                                         </button>
@@ -352,6 +353,23 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php endif; ?>
 
 <script>
+function confirmarCancelarAsignacion(idAsignacion) {
+    Swal.fire({
+        title:              '¿Cancelar esta asignación?',
+        text:               'Se eliminarán todos los turnos pendientes. Esta acción no se puede deshacer.',
+        icon:               'warning',
+        showCancelButton:   true,
+        confirmButtonText:  'Sí, cancelar asignación',
+        cancelButtonText:   'No, mantener',
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor:  '#6b7280',
+    }).then(function(result) {
+        if (result.isConfirmed) {
+            document.getElementById('form-cancel-' + idAsignacion).submit();
+        }
+    });
+}
+
 function editarModulo(m) {
     document.getElementById('titModalModulo').innerHTML = '<i class="fas fa-pen me-2 text-success"></i>Editar Módulo';
     document.getElementById('id_modulo').value    = m.id_modulo;

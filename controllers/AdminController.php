@@ -281,18 +281,6 @@ class AdminController
         $this->requireAdmin();
         $idAsignacion = (int)($_POST['id_asignacion'] ?? 0);
 
-        // Verificar que no tenga evidencias
-        $stmtE = $this->db->prepare(
-            "SELECT COUNT(*) FROM evidencias e
-             JOIN grupos g ON g.id_grupo = e.id_grupo
-             WHERE g.id_asignacion = :id"
-        );
-        $stmtE->execute([':id' => $idAsignacion]);
-        if ((int)$stmtE->fetchColumn() > 0) {
-            $_SESSION['alert'] = ['icon'=>'error','title'=>'No se puede cancelar','text'=>'Esta asignación ya tiene evidencias registradas.'];
-            header("Location: ../views/dashboard/admin_modulos.php"); exit;
-        }
-
         $this->db->prepare("UPDATE asignaciones SET estado = 'Cancelada' WHERE id_asignacion = :id")
                  ->execute([':id' => $idAsignacion]);
         $this->db->prepare("DELETE FROM turnos WHERE id_asignacion = :id")
@@ -329,9 +317,8 @@ class AdminController
         $modelUser     = new Usuario($this->db);
         $modelUser->actualizarPassword($vocero['id_usuario'], password_hash($nuevaPassword, PASSWORD_DEFAULT));
 
-        // Marcar como primer acceso nuevamente
-        $this->db->prepare("UPDATE usuarios SET primer_acceso = 1 WHERE id_usuario = :id")
-                 ->execute([':id' => $vocero['id_usuario']]);
+        // NO se resetea primer_acceso: el vocero ya completó su primer acceso,
+        // solo se le entrega una nueva contraseña para que inicie sesión normalmente.
 
         // En producción aquí se enviaría el correo con PHPMailer/SMTP
         // Por ahora almacenamos en sesión para mostrar en pantalla
@@ -375,59 +362,57 @@ class AdminController
             header("Location: ../views/dashboard/admin_aprendices.php?ficha={$idFicha}"); exit;
         }
 
-        // Correo: documento@sena.edu.co (convención SENA)
-        $correo           = ($aprendiz['documento'] ?? uniqid()) . '@sena.edu.co';
+        // Correo único usando id_aprendiz para evitar colisiones por documentos duplicados
+        $correo           = 'ap' . $idAprendiz . '@sena.edu.co';
         $passwordTemporal = $this->generarPasswordTemporal();
         $modelUser        = new Usuario($this->db);
 
-        // Crear o reutilizar usuario
-        if ($modelUser->existeCorreo($correo)) {
-            $stmtU = $this->db->prepare("SELECT id_usuario FROM usuarios WHERE correo = :c LIMIT 1");
-            $stmtU->execute([':c' => $correo]);
-            $idUsuario = (int)$stmtU->fetchColumn();
-            // Reactivar usuario y actualizar contraseña temporal
+        // Buscar si ya existe un vocero para ESTE aprendiz específico (por id_aprendiz)
+        $stmtVEx = $this->db->prepare(
+            "SELECT v.id_vocero, v.id_usuario, v.activo
+             FROM voceros v
+             WHERE v.id_aprendiz = :idap AND v.id_ficha = :fic
+             LIMIT 1"
+        );
+        $stmtVEx->execute([':idap' => $idAprendiz, ':fic' => $idFicha]);
+        $voceroExistente = $stmtVEx->fetch(PDO::FETCH_ASSOC);
+
+        if ($voceroExistente) {
+            // Ya existe: reactivar usuario y vocero
+            $idUsuario = (int)$voceroExistente['id_usuario'];
+            $this->db->prepare("UPDATE voceros SET activo = 1 WHERE id_vocero = :id")
+                     ->execute([':id' => $voceroExistente['id_vocero']]);
             $this->db->prepare("UPDATE usuarios SET activo = 1, id_rol = 2, primer_acceso = 1 WHERE id_usuario = :id")
                      ->execute([':id' => $idUsuario]);
             $modelUser->actualizarPassword($idUsuario, password_hash($passwordTemporal, PASSWORD_DEFAULT));
-            // Resetear primer_acceso a 1 para forzar cambio
-            $this->db->prepare("UPDATE usuarios SET primer_acceso = 1 WHERE id_usuario = :id")
-                     ->execute([':id' => $idUsuario]);
         } else {
+            // Crear nuevo usuario para este aprendiz (correo único por id_aprendiz)
             $idUsuario = $modelUser->crearVocero([
                 'nombres'   => $aprendiz['nombres'],
                 'apellidos' => $aprendiz['apellidos'],
                 'documento' => $aprendiz['documento'],
-                'celular'   => null,
+                'celular'   => $aprendiz['celular'] ?? null,
                 'correo'    => $correo,
                 'password'  => password_hash($passwordTemporal, PASSWORD_DEFAULT),
             ]);
-        }
 
-        if (!$idUsuario) {
-            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'No se pudo crear el usuario.'];
-            header("Location: ../views/dashboard/admin_aprendices.php?ficha={$idFicha}"); exit;
-        }
+            if (!$idUsuario) {
+                $_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'No se pudo crear el usuario.'];
+                header("Location: ../views/dashboard/admin_aprendices.php?ficha={$idFicha}"); exit;
+            }
 
-        // Verificar si ya existe registro en voceros (inactivo) para este aprendiz/ficha
-        $stmtVEx = $this->db->prepare(
-            "SELECT id_vocero FROM voceros WHERE id_usuario = :idu AND id_ficha = :fic LIMIT 1"
-        );
-        $stmtVEx->execute([':idu' => $idUsuario, ':fic' => $idFicha]);
-        $voceroExistente = $stmtVEx->fetch(PDO::FETCH_ASSOC);
-
-        if ($voceroExistente) {
-            // Reactivar
-            $this->db->prepare("UPDATE voceros SET activo = 1 WHERE id_vocero = :id")
-                     ->execute([':id' => $voceroExistente['id_vocero']]);
-        } else {
-            // Crear nuevo
+            // Crear registro en voceros vinculado al id_aprendiz
             $this->db->prepare(
-                "INSERT INTO voceros (id_usuario, id_ficha, nombres, apellidos, documento, correo, activo)
-                 VALUES (:idu, :fic, :nom, :ape, :doc, :cor, 1)"
+                "INSERT INTO voceros (id_usuario, id_ficha, id_aprendiz, nombres, apellidos, documento, correo, activo)
+                 VALUES (:idu, :fic, :idap, :nom, :ape, :doc, :cor, 1)"
             )->execute([
-                ':idu' => $idUsuario, ':fic' => $idFicha,
-                ':nom' => $aprendiz['nombres'],  ':ape' => $aprendiz['apellidos'],
-                ':doc' => $aprendiz['documento'], ':cor' => $correo,
+                ':idu'  => $idUsuario,
+                ':fic'  => $idFicha,
+                ':idap' => $idAprendiz,
+                ':nom'  => $aprendiz['nombres'],
+                ':ape'  => $aprendiz['apellidos'],
+                ':doc'  => $aprendiz['documento'],
+                ':cor'  => $correo,
             ]);
         }
 
@@ -442,9 +427,8 @@ class AdminController
 
         $_SESSION['alert'] = [
             'icon'  => 'success',
-            'title' => '¡Vocero activado!',
-            'text'  => "{$aprendiz['nombres']} {$aprendiz['apellidos']} ahora es vocero.\n"
-                     . "Correo: {$correo} | Contraseña temporal: {$passwordTemporal}",
+            'title' => 'Cuenta de vocero activada',
+            'text'  => 'Credenciales enviadas al vocero.',
         ];
         header("Location: ../views/dashboard/admin_aprendices.php?ficha={$idFicha}"); exit;
     }
@@ -460,17 +444,27 @@ class AdminController
             header("Location: ../views/dashboard/admin_aprendices.php?ficha={$idFicha}"); exit;
         }
 
+        // Leer el id_usuario ANTES de modificar el registro
+        $stmtU = $this->db->prepare("SELECT id_usuario FROM voceros WHERE id_vocero = :id LIMIT 1");
+        $stmtU->execute([':id' => $idVocero]);
+        $row = $stmtU->fetch(PDO::FETCH_ASSOC);
+
         // Desactivar vocero
         $this->db->prepare("UPDATE voceros SET activo = 0 WHERE id_vocero = :id")
                  ->execute([':id' => $idVocero]);
 
-        // Desactivar usuario asociado
-        $stmtU = $this->db->prepare("SELECT id_usuario FROM voceros WHERE id_vocero = :id LIMIT 1");
-        $stmtU->execute([':id' => $idVocero]);
-        $row = $stmtU->fetch(PDO::FETCH_ASSOC);
+        // Desactivar usuario asociado solo si no tiene otro vocero activo en otra ficha
         if ($row) {
-            $this->db->prepare("UPDATE usuarios SET activo = 0 WHERE id_usuario = :id")
-                     ->execute([':id' => $row['id_usuario']]);
+            $stmtOtros = $this->db->prepare(
+                "SELECT COUNT(*) FROM voceros
+                 WHERE id_usuario = :uid AND activo = 1 AND id_vocero != :vid"
+            );
+            $stmtOtros->execute([':uid' => $row['id_usuario'], ':vid' => $idVocero]);
+            if ((int)$stmtOtros->fetchColumn() === 0) {
+                // No tiene otros registros de vocero activos → desactivar la cuenta
+                $this->db->prepare("UPDATE usuarios SET activo = 0 WHERE id_usuario = :id")
+                         ->execute([':id' => $row['id_usuario']]);
+            }
         }
 
         $_SESSION['alert'] = ['icon'=>'success','title'=>'Vocero desactivado','text'=>'El aprendiz volvió al rol de aprendiz y su acceso fue revocado.'];
@@ -515,11 +509,11 @@ class AdminController
 
             $_SESSION['alert'] = [
                 'icon'  => 'success',
-                'title' => 'Vocero reactivado',
-                'text'  => "La cuenta fue reactivada. Nueva contraseña temporal: {$nuevaPassword}",
+                'title' => 'Cuenta de vocero activada',
+                'text'  => 'Credenciales enviadas al vocero.',
             ];
         } else {
-            $_SESSION['alert'] = ['icon'=>'success','title'=>'Vocero reactivado','text'=>'El vocero fue reactivado correctamente.'];
+            $_SESSION['alert'] = ['icon'=>'success','title'=>'Cuenta de vocero activada','text'=>'Credenciales enviadas al vocero.'];
         }
 
         header("Location: ../views/dashboard/admin_aprendices.php?ficha={$idFicha}"); exit;

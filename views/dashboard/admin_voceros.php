@@ -482,11 +482,13 @@ $fichasSinVocero    = count($fichasDelProg) - $fichasConVocero;
                         <?php endif; ?>
                     </td>
                     <td class="text-center">
-                        <form action="../../controllers/AdminController.php" method="POST" class="d-inline">
+                        <form action="../../controllers/AdminController.php" method="POST"
+                              class="d-inline form-credenciales"
+                              id="form-cred-<?= $v['id_vocero'] ?>">
                             <input type="hidden" name="accion"    value="reenviar_credenciales">
                             <input type="hidden" name="id_vocero" value="<?= $v['id_vocero'] ?>">
-                            <button type="submit" class="btn btn-sm btn-outline-warning"
-                                    onclick="return confirm('¿Reenviar credenciales a <?= addslashes($v['nombres']) ?>?')"
+                            <button type="button" class="btn btn-sm btn-outline-warning"
+                                    onclick="confirmarCredenciales(<?= $v['id_vocero'] ?>, '<?= addslashes($v['nombres'] . ' ' . $v['apellidos']) ?>')"
                                     title="Reenviar credenciales">
                                 <i class="fas fa-key me-1"></i>Credenciales
                             </button>
@@ -519,6 +521,24 @@ if (bP) {
         });
     });
 }
+
+function confirmarCredenciales(idVocero, nombre) {
+    Swal.fire({
+        title: '¿Reenviar credenciales?',
+        text:  'Se generará una nueva contraseña temporal para ' + nombre + ' y se le enviará por notificación.',
+        icon:  'question',
+        showCancelButton:   true,
+        confirmButtonText:  'Sí, reenviar',
+        cancelButtonText:   'Cancelar',
+        confirmButtonColor: '#39a900',
+        cancelButtonColor:  '#6b7280',
+    }).then(function(result) {
+        if (result.isConfirmed) {
+            document.getElementById('form-cred-' + idVocero).submit();
+        }
+    });
+}
+
 <?php if ($alert): ?>
 document.addEventListener('DOMContentLoaded', function () {
     Swal.fire({ icon:'<?= addslashes($alert['icon']) ?>', title:'<?= addslashes($alert['title']) ?>', text:'<?= addslashes($alert['text']) ?>', confirmButtonColor:'#39a900' });

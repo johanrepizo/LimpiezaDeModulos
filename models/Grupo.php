@@ -16,13 +16,14 @@ class Grupo
                     a.fecha_limite_evidencia, a.estado AS estado_asignacion,
                     m.nombre AS nombre_modulo,
                     f.numero_ficha,
-                    (SELECT COUNT(*) FROM evidencias e WHERE e.id_grupo = g.id_grupo) AS tiene_evidencia
+                    (SELECT COUNT(*) FROM evidencias e WHERE e.id_grupo = g.id_grupo) AS tiene_evidencia,
+                    (SELECT COUNT(*) FROM grupo_integrantes gi WHERE gi.id_grupo = g.id_grupo) AS total_integrantes
              FROM grupos g
              JOIN asignaciones a ON a.id_asignacion = g.id_asignacion
              JOIN modulos  m ON m.id_modulo  = a.id_modulo
              JOIN fichas   f ON f.id_ficha   = a.id_ficha
              WHERE g.id_vocero = :id
-             ORDER BY g.fecha_limpieza DESC"
+             ORDER BY g.id_grupo ASC"
         );
         $stmt->execute([':id' => $idVocero]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -141,15 +142,60 @@ class Grupo
 
     public function eliminar(int $id): bool
     {
-        // Solo se puede eliminar si no tiene evidencias
-        $stmt = $this->conn->prepare(
-            "SELECT id_evidencia FROM evidencias WHERE id_grupo = :id LIMIT 1"
-        );
-        $stmt->execute([':id' => $id]);
-        if ($stmt->rowCount() > 0) return false;
-
+        // Elimina el grupo siempre. Las evidencias históricas quedan intactas
+        // porque tienen su propio snapshot en evidencia_integrantes.
+        // grupo_integrantes se elimina por CASCADE al borrar el grupo.
         $stmt = $this->conn->prepare("DELETE FROM grupos WHERE id_grupo = :id");
         return $stmt->execute([':id' => $id]);
+    }
+
+    // Devuelve los id_aprendiz que ya están en algún grupo de la ficha (excluyendo un grupo)
+    public function aprendicesOcupadosEnFicha(int $idFicha, int $excluirGrupo = 0): array
+    {
+        $sql = "SELECT DISTINCT gi.id_aprendiz
+                FROM grupo_integrantes gi
+                JOIN grupos g ON g.id_grupo = gi.id_grupo
+                JOIN asignaciones a ON a.id_asignacion = g.id_asignacion
+                WHERE a.id_ficha = :fic";
+        if ($excluirGrupo) $sql .= " AND g.id_grupo != :excluir";
+        $stmt = $this->conn->prepare($sql);
+        $params = [':fic' => $idFicha];
+        if ($excluirGrupo) $params[':excluir'] = $excluirGrupo;
+        $stmt->execute($params);
+        return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'id_aprendiz');
+    }
+
+    // Genera el nombre automático del próximo grupo (Grupo 1, Grupo 2…)
+    // Usa el máximo número existente + 1 para evitar duplicados tras eliminar
+    public function proximoNombreGrupo(int $idVocero): string
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT COALESCE(MAX(
+                CAST(REGEXP_REPLACE(nombre_grupo, '[^0-9]', '') AS UNSIGNED)
+             ), 0)
+             FROM grupos WHERE id_vocero = :id"
+        );
+        $stmt->execute([':id' => $idVocero]);
+        $max = (int)$stmt->fetchColumn();
+        return "Grupo " . ($max + 1);
+    }
+
+    // Renumera todos los grupos del vocero en orden de id_grupo ASC
+    // para que siempre queden Grupo 1, Grupo 2, Grupo 3…
+    public function renumerarGrupos(int $idVocero): void
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT id_grupo FROM grupos WHERE id_vocero = :id ORDER BY id_grupo ASC"
+        );
+        $stmt->execute([':id' => $idVocero]);
+        $ids = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'id_grupo');
+
+        $upd = $this->conn->prepare(
+            "UPDATE grupos SET nombre_grupo = :n WHERE id_grupo = :id"
+        );
+        foreach ($ids as $i => $idGrupo) {
+            $upd->execute([':n' => 'Grupo ' . ($i + 1), ':id' => $idGrupo]);
+        }
     }
 
     public function registrarHistorial(int $idGrupo, string $descripcion, int $idUsuario): void

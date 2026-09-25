@@ -132,16 +132,16 @@ class AuthController
         header("Location: ../views/dashboard/vocero_dashboard.php"); exit;
     }
 
-    // ── RECUPERAR CONTRASEÑA (ADMIN) ───────────────────────────────────────
+    // ── RECUPERAR CONTRASEÑA ───────────────────────────────────────────────
     public function recuperar(): void
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header("Location: ../views/usuarios/login.php?panel=recuperar"); exit;
+            header("Location: ../views/usuarios/login.php"); exit;
         }
 
-        $correo          = trim($_POST['correo']          ?? '');
-        $passwordNueva   = trim($_POST['password_nueva']  ?? '');
-        $passwordConfirm = trim($_POST['password_confirm']?? '');
+        $correo          = trim($_POST['correo']           ?? '');
+        $passwordNueva   = trim($_POST['password_nueva']   ?? '');
+        $passwordConfirm = trim($_POST['password_confirm'] ?? '');
 
         if (empty($correo) || empty($passwordNueva)) {
             $_SESSION['alert'] = ['icon'=>'warning','title'=>'Campos incompletos','text'=>'Completa todos los campos.'];
@@ -162,7 +162,7 @@ class AuthController
         $db    = (new Database())->conectar();
         $model = new Usuario($db);
 
-        // Por seguridad, mostramos el mismo mensaje exista o no el correo
+        // Por seguridad mostramos el mismo mensaje exista o no el correo
         if ($model->existeCorreo($correo)) {
             $model->actualizarPasswordPorCorreo($correo, password_hash($passwordNueva, PASSWORD_DEFAULT));
         }
@@ -174,6 +174,12 @@ class AuthController
     // ── LOGOUT ─────────────────────────────────────────────────────────────
     public function logout(): void
     {
+        // Evitar que el navegador sirva la página del dashboard desde caché
+        header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+        header("Cache-Control: post-check=0, pre-check=0", false);
+        header("Pragma: no-cache");
+        header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
+
         session_unset();
         session_destroy();
         header("Location: ../views/usuarios/login.php"); exit;

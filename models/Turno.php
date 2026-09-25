@@ -167,7 +167,33 @@ class Turno
              LIMIT 1"
         );
         $stmt->execute([':ficha' => $idFicha]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        $turno = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$turno) return false;
+
+        // Si el turno no tiene grupo vinculado, buscar el grupo de la ficha
+        // cuya fecha_limpieza coincida con hoy
+        if (empty($turno['id_grupo_turno'])) {
+            $stmtG = $this->conn->prepare(
+                "SELECT g.id_grupo, g.nombre_grupo
+                 FROM grupos g
+                 JOIN asignaciones a ON a.id_asignacion = g.id_asignacion
+                 WHERE a.id_ficha = :ficha
+                   AND g.fecha_limpieza = CURDATE()
+                 LIMIT 1"
+            );
+            $stmtG->execute([':ficha' => $idFicha]);
+            $grupo = $stmtG->fetch(PDO::FETCH_ASSOC);
+            if ($grupo) {
+                $turno['id_grupo_turno'] = $grupo['id_grupo'];
+                $turno['nombre_grupo']   = $grupo['nombre_grupo'];
+                // Vincular el turno al grupo en la BD para que quede registrado
+                $this->conn->prepare("UPDATE turnos SET id_grupo = :g WHERE id_turno = :t")
+                           ->execute([':g' => $grupo['id_grupo'], ':t' => $turno['id_turno']]);
+            }
+        }
+
+        return $turno;
     }
 
     /**
@@ -230,6 +256,72 @@ class Turno
         $this->conn->prepare(
             "UPDATE turnos SET estado = 'Cumplido' WHERE id_turno = :id"
         )->execute([':id' => $idTurno]);
+    }
+
+    /**
+     * Después de que un grupo completa su turno, asignarle el siguiente turno libre
+     * de la rotación (el más lejano entre todos los grupos activos), manteniendo el ciclo.
+     * Devuelve la nueva fecha asignada o false si no hay turnos disponibles.
+     */
+    public function avanzarTurnoGrupo(int $idTurno, int $idGrupo): string|false
+    {
+        // Obtener la asignación del turno completado
+        $stmtA = $this->conn->prepare(
+            "SELECT id_asignacion FROM turnos WHERE id_turno = :id LIMIT 1"
+        );
+        $stmtA->execute([':id' => $idTurno]);
+        $row = $stmtA->fetch(\PDO::FETCH_ASSOC);
+        if (!$row) return false;
+        $idAsignacion = (int)$row['id_asignacion'];
+
+        // Buscar el último turno ocupado (por cualquier grupo de esta asignación)
+        // para que el grupo recién completado quede al final de la cola
+        $stmtLast = $this->conn->prepare(
+            "SELECT MAX(fecha_turno) FROM turnos
+             WHERE id_asignacion = :asig AND id_grupo IS NOT NULL"
+        );
+        $stmtLast->execute([':asig' => $idAsignacion]);
+        $ultimaFecha = $stmtLast->fetchColumn();
+
+        // Buscar el primer turno libre DESPUÉS de la última fecha ocupada
+        $stmtNext = $this->conn->prepare(
+            "SELECT id_turno, fecha_turno FROM turnos
+             WHERE id_asignacion = :asig
+               AND id_grupo IS NULL
+               AND fecha_turno > :ultima
+             ORDER BY fecha_turno ASC
+             LIMIT 1"
+        );
+        $stmtNext->execute([':asig' => $idAsignacion, ':ultima' => $ultimaFecha ?: date('Y-m-d')]);
+        $nextTurno = $stmtNext->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$nextTurno) {
+            // Si no hay turno después del último, tomar el primer turno libre que haya
+            $stmtFallback = $this->conn->prepare(
+                "SELECT id_turno, fecha_turno FROM turnos
+                 WHERE id_asignacion = :asig
+                   AND id_grupo IS NULL
+                   AND fecha_turno >= CURDATE()
+                 ORDER BY fecha_turno ASC
+                 LIMIT 1"
+            );
+            $stmtFallback->execute([':asig' => $idAsignacion]);
+            $nextTurno = $stmtFallback->fetch(\PDO::FETCH_ASSOC);
+        }
+
+        if (!$nextTurno) return false;
+
+        // Asignar el grupo al nuevo turno
+        $this->conn->prepare(
+            "UPDATE turnos SET id_grupo = :grupo WHERE id_turno = :turno"
+        )->execute([':grupo' => $idGrupo, ':turno' => $nextTurno['id_turno']]);
+
+        // Actualizar la fecha_limpieza del grupo
+        $this->conn->prepare(
+            "UPDATE grupos SET fecha_limpieza = :fecha, fecha_modificacion = NOW() WHERE id_grupo = :id"
+        )->execute([':fecha' => $nextTurno['fecha_turno'], ':id' => $idGrupo]);
+
+        return $nextTurno['fecha_turno'];
     }
 
     /**

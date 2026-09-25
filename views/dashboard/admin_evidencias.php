@@ -24,6 +24,7 @@ $programaAct   = null;
 $fichasDelProg = [];
 $fichaAct      = null;
 $evidencias    = [];
+$pares         = [];
 
 if ($vistaPrograma) {
     $programaAct = $modelProg->obtenerPorId($vistaPrograma);
@@ -73,18 +74,103 @@ if ($vistaFicha) {
         $stmtF2->execute([':prog' => $vistaPrograma]);
         $fichasDelProg = $stmtF2->fetchAll(PDO::FETCH_ASSOC);
 
+        // Evidencias ordenadas: fecha DESC, tipo ASC (antes primero)
         $evidencias = $modelEv->obtenerTodas(['id_ficha' => $vistaFicha]);
+
+        // Agrupar en pares por fecha_limpieza + id_grupo
+        foreach ($evidencias as $ev) {
+            $clave = $ev['fecha_limpieza'] . '|' . $ev['id_grupo'];
+            if (!isset($pares[$clave])) {
+                $pares[$clave] = [
+                    'fecha_limpieza'   => $ev['fecha_limpieza'],
+                    'nombre_grupo'     => $ev['nombre_grupo'],
+                    'nombre_modulo'    => $ev['nombre_modulo'],
+                    'numero_ficha'     => $ev['numero_ficha'],
+                    'vocero_nombres'   => $ev['vocero_nombres'],
+                    'vocero_apellidos' => $ev['vocero_apellidos'],
+                    'antes'            => null,
+                    'despues'          => null,
+                ];
+            }
+            $pares[$clave][$ev['tipo']] = $ev;
+        }
+        // Ordenar por fecha_limpieza DESC
+        usort($pares, fn($a,$b) => strcmp($b['fecha_limpieza'], $a['fecha_limpieza']));
     }
 }
 
-// Totales globales
-$stmtTotEv = $db->query("SELECT COUNT(*) FROM evidencias");
-$totalEvTotal = (int)$stmtTotEv->fetchColumn();
+// Contadores globales: contar pares completos (2 fotos distintas)
+$stmtTotPares = $db->query(
+    "SELECT COUNT(*) FROM (
+        SELECT id_grupo, fecha_limpieza
+        FROM (
+            SELECT e.id_grupo, g.fecha_limpieza
+            FROM evidencias e
+            JOIN grupos g ON g.id_grupo = e.id_grupo
+            GROUP BY e.id_grupo, g.fecha_limpieza
+            HAVING COUNT(DISTINCT e.tipo) >= 2
+        ) t
+    ) u"
+);
+$totalParesCompletos = (int)$stmtTotPares->fetchColumn();
 
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
-<!-- ══ BREADCRUMB + CABECERA ════════════════════════════════════════════════ -->
+<style>
+.prog-card { transition: transform .2s, box-shadow .2s; cursor: pointer; }
+.prog-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.1) !important; }
+.breadcrumb-item + .breadcrumb-item::before { color: #9ca3af; }
+
+/* ── Par de fotos ── */
+.par-card {
+    background: #fff; border: 1px solid #e5e7eb;
+    border-radius: 12px; overflow: hidden; margin-bottom: 1rem;
+}
+.par-header {
+    padding: .6rem 1rem; background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex; align-items: center; gap: .65rem; flex-wrap: wrap;
+}
+.par-modulo { font-size: .82rem; font-weight: 700; color: #111827; }
+.par-vocero { font-size: .75rem; color: #6b7280; }
+.par-grupo  { font-size: .75rem; color: #9ca3af; }
+.par-fecha  { font-size: .74rem; color: #9ca3af; margin-left: auto; white-space: nowrap; }
+
+.par-fotos { display: grid; grid-template-columns: 1fr 1fr; }
+@media (max-width: 500px) { .par-fotos { grid-template-columns: 1fr; } }
+
+.par-foto { position: relative; overflow: hidden; cursor: pointer; }
+.par-foto img {
+    width: 100%; height: 200px; object-fit: cover; display: block;
+    transition: transform .3s ease;
+}
+.par-foto:hover img { transform: scale(1.04); }
+.par-foto-label {
+    position: absolute; top: .5rem; left: .5rem;
+    padding: .18rem .55rem; border-radius: 20px;
+    font-size: .7rem; font-weight: 700;
+}
+.label-antes   { background: rgba(234,179,8,.85);  color: #78350f; }
+.label-despues { background: rgba(22,163,74,.85);   color: #fff; }
+.par-foto-overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,.42);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity .25s;
+    color: #fff; font-size: 1.3rem;
+}
+.par-foto:hover .par-foto-overlay { opacity: 1; }
+
+.par-foto-missing {
+    height: 200px; background: #f3f4f6;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    color: #9ca3af; font-size: .78rem; gap: .35rem;
+}
+</style>
+
+<!-- ══ BREADCRUMB ══════════════════════════════════════════════════════════════ -->
 <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
     <div>
         <nav aria-label="breadcrumb" class="mb-1">
@@ -126,9 +212,9 @@ require_once __DIR__ . '/../layouts/header.php';
         </h4>
         <p class="text-muted small mb-0">
             <?php if ($fichaAct): ?>
-                Historial de evidencias fotográficas registradas por el vocero
+                Historial de pares antes/después registrados por el vocero · ordenados por fecha de limpieza
             <?php elseif ($programaAct): ?>
-                Selecciona una ficha para ver el historial de evidencias
+                Selecciona una ficha para ver su historial de evidencias
             <?php else: ?>
                 Seguimiento centralizado de evidencias por programa y ficha
             <?php endif; ?>
@@ -173,8 +259,8 @@ require_once __DIR__ . '/../layouts/header.php';
                     <i class="fas fa-images"></i>
                 </div>
                 <div>
-                    <div class="fs-4 fw-bold"><?= $totalEvTotal ?></div>
-                    <div class="text-muted small">Evidencias registradas</div>
+                    <div class="fs-4 fw-bold"><?= $totalParesCompletos ?></div>
+                    <div class="text-muted small">Pares completos</div>
                 </div>
             </div>
         </div>
@@ -190,14 +276,19 @@ require_once __DIR__ . '/../layouts/header.php';
 
 <div class="row g-3" id="gridProgramas">
     <?php foreach ($programas as $p):
+        // Pares completos de este programa
         $stmtEC = $db->prepare(
-            "SELECT COUNT(*) FROM evidencias e
-             JOIN grupos g ON g.id_grupo = e.id_grupo
-             JOIN asignaciones a ON a.id_asignacion = g.id_asignacion
-             WHERE a.id_ficha IN (SELECT id_ficha FROM fichas WHERE id_programa = :prog)"
+            "SELECT COUNT(*) FROM (
+                SELECT e.id_grupo FROM evidencias e
+                JOIN grupos g   ON g.id_grupo     = e.id_grupo
+                JOIN asignaciones a ON a.id_asignacion = g.id_asignacion
+                WHERE a.id_ficha IN (SELECT id_ficha FROM fichas WHERE id_programa = :prog)
+                GROUP BY e.id_grupo, g.fecha_limpieza
+                HAVING COUNT(DISTINCT e.tipo) >= 2
+             ) t"
         );
         $stmtEC->execute([':prog' => $p['id_programa']]);
-        $cntEv = (int)$stmtEC->fetchColumn();
+        $cntPares = (int)$stmtEC->fetchColumn();
     ?>
     <div class="col-md-6 col-lg-4 prog-item">
         <a href="admin_evidencias.php?programa=<?= $p['id_programa'] ?>" class="text-decoration-none">
@@ -222,8 +313,8 @@ require_once __DIR__ . '/../layouts/header.php';
                             <div class="text-muted" style="font-size:.72rem;">Fichas</div>
                         </div>
                         <div>
-                            <div class="fw-bold text-warning fs-5"><?= $cntEv ?></div>
-                            <div class="text-muted" style="font-size:.72rem;">Evidencias</div>
+                            <div class="fw-bold text-warning fs-5"><?= $cntPares ?></div>
+                            <div class="text-muted" style="font-size:.72rem;">Pares completos</div>
                         </div>
                         <div class="ms-auto d-flex align-items-center text-success" style="font-size:.82rem;">
                             Ver fichas <i class="fas fa-arrow-right ms-1"></i>
@@ -242,19 +333,22 @@ require_once __DIR__ . '/../layouts/header.php';
 </div>
 <?php endif; ?>
 
-<!-- ══ NIVEL 1: FICHAS DEL PROGRAMA ═════════════════════════════════════════ -->
+<!-- ══ NIVEL 1: FICHAS DEL PROGRAMA ══════════════════════════════════════════ -->
 <?php if ($vistaPrograma && !$vistaFicha): ?>
-
 <div class="row g-3">
     <?php foreach ($fichasDelProg as $f):
         $stmtEF = $db->prepare(
-            "SELECT COUNT(*) FROM evidencias e
-             JOIN grupos g ON g.id_grupo = e.id_grupo
-             JOIN asignaciones a ON a.id_asignacion = g.id_asignacion
-             WHERE a.id_ficha = :fic"
+            "SELECT COUNT(*) FROM (
+                SELECT e.id_grupo FROM evidencias e
+                JOIN grupos g ON g.id_grupo = e.id_grupo
+                JOIN asignaciones a ON a.id_asignacion = g.id_asignacion
+                WHERE a.id_ficha = :fic
+                GROUP BY e.id_grupo, g.fecha_limpieza
+                HAVING COUNT(DISTINCT e.tipo) >= 2
+             ) t"
         );
         $stmtEF->execute([':fic' => $f['id_ficha']]);
-        $cntEvFicha = (int)$stmtEF->fetchColumn();
+        $cntParFicha = (int)$stmtEF->fetchColumn();
     ?>
     <div class="col-md-6 col-lg-4">
         <a href="admin_evidencias.php?ficha=<?= $f['id_ficha'] ?>" class="text-decoration-none">
@@ -281,8 +375,8 @@ require_once __DIR__ . '/../layouts/header.php';
                     </div>
                     <div class="d-flex gap-3 pt-3" style="border-top:1px solid #e5e7eb;">
                         <div>
-                            <div class="fw-bold text-warning fs-5"><?= $cntEvFicha ?></div>
-                            <div class="text-muted" style="font-size:.72rem;">Evidencias</div>
+                            <div class="fw-bold text-warning fs-5"><?= $cntParFicha ?></div>
+                            <div class="text-muted" style="font-size:.72rem;">Pares completos</div>
                         </div>
                         <div>
                             <div class="fw-bold text-muted" style="font-size:1rem;"><?= (int)$f['total_aprendices'] ?></div>
@@ -305,14 +399,15 @@ require_once __DIR__ . '/../layouts/header.php';
 </div>
 <?php endif; ?>
 
-<!-- ══ NIVEL 2: HISTORIAL DE EVIDENCIAS DE LA FICHA ═════════════════════════ -->
+<!-- ══ NIVEL 2: PARES ANTES/DESPUÉS DE LA FICHA ═══════════════════════════════ -->
 <?php if ($vistaFicha && $fichaAct): ?>
 
 <?php
 $stmtGC = $db->prepare("SELECT COUNT(*) FROM grupos g JOIN asignaciones a ON a.id_asignacion=g.id_asignacion WHERE a.id_ficha=:fic");
 $stmtGC->execute([':fic' => $vistaFicha]);
-$cntGrupos = (int)$stmtGC->fetchColumn();
+$cntGrupos    = (int)$stmtGC->fetchColumn();
 $voceroNombre = trim(($fichaAct['vocero_nombres'] ?? '') . ' ' . ($fichaAct['vocero_apellidos'] ?? ''));
+$paresCompletos = count(array_filter($pares, fn($p) => $p['antes'] && $p['despues']));
 ?>
 
 <div class="row g-3 mb-4">
@@ -321,8 +416,8 @@ $voceroNombre = trim(($fichaAct['vocero_nombres'] ?? '') . ' ' . ($fichaAct['voc
             <div class="d-flex align-items-center gap-3">
                 <div class="stat-icon" style="background:rgba(57,169,0,.12);color:#39a900;"><i class="fas fa-images"></i></div>
                 <div>
-                    <div class="fs-4 fw-bold"><?= count($evidencias) ?></div>
-                    <div class="text-muted small">Evidencias registradas</div>
+                    <div class="fs-4 fw-bold"><?= $paresCompletos ?> / <?= count($pares) ?></div>
+                    <div class="text-muted small">Pares completos</div>
                 </div>
             </div>
         </div>
@@ -343,7 +438,7 @@ $voceroNombre = trim(($fichaAct['vocero_nombres'] ?? '') . ' ' . ($fichaAct['voc
             <div class="d-flex align-items-center gap-3">
                 <div class="stat-icon" style="background:rgba(234,179,8,.1);color:#d97706;"><i class="fas fa-user-tie"></i></div>
                 <div>
-                    <div class="fw-bold" style="font-size:.9rem;"><?= $voceroNombre ?: '—' ?></div>
+                    <div class="fw-bold" style="font-size:.9rem;"><?= htmlspecialchars($voceroNombre ?: '—') ?></div>
                     <div class="text-muted small">Vocero asignado</div>
                 </div>
             </div>
@@ -351,129 +446,116 @@ $voceroNombre = trim(($fichaAct['vocero_nombres'] ?? '') . ' ' . ($fichaAct['voc
     </div>
 </div>
 
-<div class="card shadow-sm border-0">
-    <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <h6 class="fw-bold mb-0">
-            <i class="fas fa-images text-success me-2"></i>
-            Historial de Evidencias — <span class="font-monospace text-success"><?= htmlspecialchars($fichaAct['numero_ficha']) ?></span>
-            <span class="text-muted fw-normal small ms-2">— <?= htmlspecialchars($fichaAct['nombre_programa']) ?></span>
-        </h6>
-        <div class="d-flex gap-2 align-items-center">
-            <span class="badge bg-success"><?= count($evidencias) ?> evidencia(s)</span>
-            <div class="input-group input-group-sm" style="max-width:220px;">
-                <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-                <input type="text" id="buscEv" class="form-control border-start-0" placeholder="Buscar…">
-            </div>
+<!-- Cabecera + buscador -->
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h6 class="fw-bold mb-0">
+        <i class="fas fa-images text-success me-2"></i>
+        Evidencias — <span class="font-monospace text-success"><?= htmlspecialchars($fichaAct['numero_ficha']) ?></span>
+        <span class="text-muted fw-normal small ms-1">— <?= htmlspecialchars($fichaAct['nombre_programa']) ?></span>
+    </h6>
+    <div class="d-flex gap-2 align-items-center">
+        <span class="badge bg-success"><?= count($pares) ?> registro(s)</span>
+        <div class="input-group input-group-sm" style="max-width:220px;">
+            <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+            <input type="text" id="buscEv" class="form-control border-start-0" placeholder="Buscar grupo o módulo…">
         </div>
     </div>
-    <div class="card-body p-0">
-        <?php if (empty($evidencias)): ?>
-        <div class="text-center py-5 text-muted">
-            <i class="fas fa-images fa-3x mb-3 opacity-25 d-block"></i>
-            <p class="small mb-0">No hay evidencias registradas para esta ficha aún.</p>
+</div>
+
+<!-- Pares de fotos ordenados por fecha DESC -->
+<?php if (empty($pares)): ?>
+<div class="card shadow-sm border-0">
+    <div class="card-body text-center py-5 text-muted">
+        <i class="fas fa-images fa-3x mb-3 opacity-25 d-block"></i>
+        <p class="small mb-0">No hay evidencias registradas para esta ficha aún.</p>
+    </div>
+</div>
+<?php else: ?>
+<div id="contPares">
+<?php foreach ($pares as $par):
+    $vocPar = trim(($par['vocero_nombres'] ?? '') . ' ' . ($par['vocero_apellidos'] ?? ''));
+    $completo = $par['antes'] && $par['despues'];
+?>
+<div class="par-card par-item"
+     data-search="<?= strtolower(htmlspecialchars($par['nombre_grupo'] . ' ' . $par['nombre_modulo'] . ' ' . $vocPar)) ?>">
+    <!-- Cabecera -->
+    <div class="par-header">
+        <i class="fas fa-door-open text-success" style="font-size:.8rem;"></i>
+        <span class="par-modulo"><?= htmlspecialchars($par['nombre_modulo']) ?></span>
+        <span class="par-grupo">· <?= htmlspecialchars($par['nombre_grupo']) ?></span>
+        <?php if ($vocPar): ?>
+        <span class="par-vocero">
+            <i class="fas fa-user-tie me-1 text-success" style="font-size:.7rem;"></i>
+            <?= htmlspecialchars($vocPar) ?>
+        </span>
+        <?php endif; ?>
+        <span class="par-fecha">
+            <i class="fas fa-calendar me-1"></i>
+            <?= date('d/m/Y', strtotime($par['fecha_limpieza'])) ?>
+        </span>
+        <?php if ($completo): ?>
+        <span class="badge ms-1" style="background:#dcfce7;color:#166534;font-size:.68rem;">
+            <i class="fas fa-check me-1"></i>Par completo
+        </span>
+        <?php else: ?>
+        <span class="badge ms-1" style="background:#fef3c7;color:#92400e;font-size:.68rem;">
+            Incompleto
+        </span>
+        <?php endif; ?>
+    </div>
+
+    <!-- Fotos lado a lado -->
+    <div class="par-fotos">
+        <?php if ($par['antes']): ?>
+        <div class="par-foto"
+             onclick="verFoto(
+                 <?= json_encode('../../public/' . $par['antes']['ruta_archivo']) ?>,
+                 <?= json_encode('Antes — ' . $par['nombre_grupo']) ?>,
+                 <?= json_encode($par['nombre_modulo'] . ' · ' . date('d/m/Y', strtotime($par['fecha_limpieza']))) ?>
+             )">
+            <img src="../../public/<?= htmlspecialchars($par['antes']['ruta_archivo']) ?>"
+                 alt="Antes">
+            <span class="par-foto-label label-antes">
+                <i class="fas fa-clock me-1"></i>Antes
+            </span>
+            <div class="par-foto-overlay"><i class="fas fa-expand"></i></div>
         </div>
         <?php else: ?>
-        <div class="table-responsive">
-            <table class="table tabla-limpia align-middle mb-0" id="tblEv">
-                <thead class="table-light">
-                    <tr>
-                        <th>Foto</th>
-                        <th>Vocero</th>
-                        <th>Grupo</th>
-                        <th>Módulo</th>
-                        <th>Fecha Limpieza</th>
-                        <th>Fecha Subida</th>
-                        <th class="text-center">Ver</th>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($evidencias as $e):
-                    $dataEv = json_encode([
-                        'ruta'     => $e['ruta_archivo'],
-                        'vocero'   => ($e['vocero_nombres'] ?? '') . ' ' . ($e['vocero_apellidos'] ?? ''),
-                        'modulo'   => $e['nombre_modulo'] ?? '—',
-                        'grupo'    => $e['nombre_grupo']  ?? '—',
-                        'ficha'    => $e['numero_ficha']  ?? '—',
-                        'limpieza' => date('d/m/Y', strtotime($e['fecha_limpieza'])),
-                        'subida'   => date('d/m/Y H:i',  strtotime($e['fecha_subida'])),
-                    ], JSON_HEX_QUOT | JSON_HEX_APOS);
-                ?>
-                <tr>
-                    <td>
-                        <img src="../../public/<?= htmlspecialchars($e['ruta_archivo']) ?>"
-                             alt="Evidencia"
-                             style="width:52px;height:52px;object-fit:cover;border-radius:8px;
-                                    border:1px solid #e5e7eb;cursor:pointer;"
-                             data-ev="<?= htmlspecialchars($dataEv, ENT_QUOTES) ?>"
-                             onclick="verDetalle(this)" title="Ampliar">
-                    </td>
-                    <td class="small fw-semibold">
-                        <?= htmlspecialchars(($e['vocero_nombres'] ?? '') . ' ' . ($e['vocero_apellidos'] ?? '')) ?>
-                    </td>
-                    <td class="small text-muted"><?= htmlspecialchars($e['nombre_grupo'] ?? '—') ?></td>
-                    <td class="small"><?= htmlspecialchars($e['nombre_modulo'] ?? '—') ?></td>
-                    <td class="small"><?= date('d/m/Y', strtotime($e['fecha_limpieza'])) ?></td>
-                    <td class="small text-muted"><?= date('d/m/Y H:i', strtotime($e['fecha_subida'])) ?></td>
-                    <td class="text-center">
-                        <button class="btn btn-sm btn-outline-success"
-                                data-ev="<?= htmlspecialchars($dataEv, ENT_QUOTES) ?>"
-                                onclick="verDetalle(this)" title="Ver detalle">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
+        <div class="par-foto-missing">
+            <i class="fas fa-clock fa-lg opacity-30"></i>
+            <span>Foto antes no subida</span>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($par['despues']): ?>
+        <div class="par-foto"
+             onclick="verFoto(
+                 <?= json_encode('../../public/' . $par['despues']['ruta_archivo']) ?>,
+                 <?= json_encode('Después — ' . $par['nombre_grupo']) ?>,
+                 <?= json_encode($par['nombre_modulo'] . ' · ' . date('d/m/Y', strtotime($par['fecha_limpieza']))) ?>
+             )">
+            <img src="../../public/<?= htmlspecialchars($par['despues']['ruta_archivo']) ?>"
+                 alt="Después">
+            <span class="par-foto-label label-despues">
+                <i class="fas fa-circle-check me-1"></i>Después
+            </span>
+            <div class="par-foto-overlay"><i class="fas fa-expand"></i></div>
+        </div>
+        <?php else: ?>
+        <div class="par-foto-missing" style="border-left:1px dashed #d1d5db;">
+            <i class="fas fa-circle-check fa-lg opacity-30"></i>
+            <span>Foto después no subida</span>
         </div>
         <?php endif; ?>
     </div>
 </div>
+<?php endforeach; ?>
+</div><!-- /contPares -->
 <?php endif; ?>
 
-<!-- ══ MODAL DETALLE ═════════════════════════════════════════════════════════ -->
-<div class="modal fade" id="modalDetalle" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header border-0" style="background:#0f2200;color:#fff;">
-                <h6 class="modal-title fw-bold mb-0">
-                    <i class="fas fa-images me-2 text-success"></i>Detalle de Evidencia
-                </h6>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-0">
-                <div class="row g-0">
-                    <div class="col-md-7 bg-dark d-flex align-items-center justify-content-center"
-                         style="min-height:320px;">
-                        <img id="detalleImg" src="" alt="Evidencia"
-                             style="max-width:100%;max-height:420px;object-fit:contain;padding:1rem;">
-                    </div>
-                    <div class="col-md-5 p-4">
-                        <h6 class="fw-bold mb-3">Información</h6>
-                        <?php foreach (['detalleVocero'=>'Vocero','detalleGrupo'=>'Grupo','detalleModulo'=>'Módulo','detalleFicha'=>'Ficha','detalleLimpieza'=>'Fecha Limpieza','detalleSubida'=>'Fecha Subida'] as $id => $label): ?>
-                        <div class="mb-3">
-                            <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.5px;"><?= $label ?></div>
-                            <div class="fw-semibold small <?= $id==='detalleFicha' ? 'font-monospace text-success' : '' ?>" id="<?= $id ?>">—</div>
-                        </div>
-                        <?php endforeach; ?>
-                        <div class="mt-3 pt-3" style="border-top:1px solid #e5e7eb;">
-                            <span class="badge bg-success px-3 py-2">
-                                <i class="fas fa-check me-1"></i>Evidencia verificada
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+<?php endif; ?>
 
-<style>
-.prog-card { transition: transform .2s, box-shadow .2s; cursor: pointer; }
-.prog-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.1) !important; }
-.breadcrumb-item + .breadcrumb-item::before { color: #9ca3af; }
-</style>
-
+<!-- ══ JS ═════════════════════════════════════════════════════════════════════ -->
 <script>
 // Buscador programas
 const buscProg = document.getElementById('buscPrograma');
@@ -486,35 +568,38 @@ if (buscProg) {
     });
 }
 
-// Buscador evidencias
+// Buscador pares (nivel 2)
 const buscEv = document.getElementById('buscEv');
 if (buscEv) {
     buscEv.addEventListener('input', function () {
         const q = this.value.toLowerCase();
-        document.querySelectorAll('#tblEv tbody tr').forEach(tr => {
-            tr.style.display = !q || tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+        document.querySelectorAll('.par-item').forEach(el => {
+            el.style.display = !q || el.dataset.search.includes(q) ? '' : 'none';
         });
     });
 }
 
-// Modal detalle
-function verDetalle(el) {
-    const data = JSON.parse(el.dataset.ev);
-    const base = window.location.origin
-               + window.location.pathname.replace(/\/views\/dashboard\/.*$/, '/public/');
-    document.getElementById('detalleImg').src              = base + data.ruta;
-    document.getElementById('detalleVocero').textContent   = data.vocero   || '—';
-    document.getElementById('detalleGrupo').textContent    = data.grupo    || '—';
-    document.getElementById('detalleModulo').textContent   = data.modulo   || '—';
-    document.getElementById('detalleFicha').textContent    = data.ficha    || '—';
-    document.getElementById('detalleLimpieza').textContent = data.limpieza || '—';
-    document.getElementById('detalleSubida').textContent   = data.subida   || '—';
-    new bootstrap.Modal(document.getElementById('modalDetalle')).show();
+// Lightbox foto individual
+function verFoto(url, titulo, subtitulo) {
+    Swal.fire({
+        imageUrl:  url,
+        imageAlt:  titulo,
+        title:     titulo,
+        text:      subtitulo,
+        confirmButtonColor: '#39a900',
+        width: 720,
+        showCloseButton: true
+    });
 }
 
 <?php if ($alert): ?>
 document.addEventListener('DOMContentLoaded', function () {
-    Swal.fire({ icon:'<?= addslashes($alert['icon']) ?>', title:'<?= addslashes($alert['title']) ?>', text:'<?= addslashes($alert['text']) ?>', confirmButtonColor:'#39a900' });
+    Swal.fire({
+        icon:  '<?= addslashes($alert['icon'])  ?>',
+        title: '<?= addslashes($alert['title']) ?>',
+        text:  '<?= addslashes($alert['text'])  ?>',
+        confirmButtonColor: '#39a900'
+    });
 });
 <?php endif; ?>
 </script>

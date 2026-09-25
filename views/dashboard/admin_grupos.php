@@ -70,18 +70,7 @@ if ($vistaFicha) {
         $stmtF2->execute([':prog' => $vistaPrograma]);
         $fichasDelProg = $stmtF2->fetchAll(PDO::FETCH_ASSOC);
 
-        // Grupos con filtros
-        $where  = ['a.id_ficha = :fic'];
-        $params = [':fic' => $vistaFicha];
-        if ($filtroEstado) { $where[] = 'g.estado = :est'; $params[':est'] = $filtroEstado; }
-        if ($busqueda) {
-            $like = '%' . $busqueda . '%';
-            $where[] = '(g.nombre_grupo LIKE :q OR v.nombres LIKE :q2 OR v.apellidos LIKE :q3 OR m.nombre LIKE :q4)';
-            $params[':q'] = $like; $params[':q2'] = $like;
-            $params[':q3'] = $like; $params[':q4'] = $like;
-        }
-        $whereStr = implode(' AND ', $where);
-
+        // Todos los grupos de la ficha ordenados por id_grupo ASC
         $stmtG = $db->prepare(
             "SELECT g.*,
                     m.nombre  AS nombre_modulo,
@@ -94,20 +83,28 @@ if ($vistaFicha) {
              JOIN modulos      m ON m.id_modulo     = a.id_modulo
              JOIN fichas       f ON f.id_ficha      = a.id_ficha
              JOIN voceros      v ON v.id_vocero     = g.id_vocero
-             WHERE {$whereStr}
-             ORDER BY g.fecha_limpieza DESC"
+             WHERE a.id_ficha = :fic
+             ORDER BY g.id_grupo ASC"
         );
-        $stmtG->execute($params);
+        $stmtG->execute([':fic' => $vistaFicha]);
         $grupos = $stmtG->fetchAll(PDO::FETCH_ASSOC);
-    }
-}
 
-// Detalle integrantes si se pide
-$grupoDetalle   = null;
-$integrantesDet = [];
-if (!empty($_GET['grupo'])) {
-    $grupoDetalle   = $modelGrup->obtenerPorId((int)$_GET['grupo']);
-    $integrantesDet = $modelGrup->obtenerIntegrantes((int)$_GET['grupo']);
+        // Cargar integrantes de todos los grupos de una sola vez
+        $integrantesPorGrupo = [];
+        if (!empty($grupos)) {
+            $ids = implode(',', array_column($grupos, 'id_grupo'));
+            $stmtI = $db->query(
+                "SELECT gi.id_grupo, ap.apellidos, ap.nombres, ap.documento, ap.celular, ap.correo
+                 FROM grupo_integrantes gi
+                 JOIN aprendices ap ON ap.id_aprendiz = gi.id_aprendiz
+                 WHERE gi.id_grupo IN ($ids)
+                 ORDER BY gi.id_grupo ASC, ap.apellidos ASC"
+            );
+            foreach ($stmtI->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $integrantesPorGrupo[(int)$row['id_grupo']][] = $row;
+            }
+        }
+    }
 }
 
 require_once __DIR__ . '/../layouts/header.php';
@@ -330,150 +327,118 @@ $totalEv = (int)$stmtTotEv->fetchColumn();
 <!-- ══ NIVEL 2: GRUPOS DE LA FICHA ══════════════════════════════════════════ -->
 <?php if ($vistaFicha && $fichaAct): ?>
 
-<!-- Filtros -->
-<form method="GET" class="card shadow-sm border-0 mb-3">
-    <div class="card-body py-2 px-3">
-        <input type="hidden" name="programa" value="<?= $vistaPrograma ?>">
-        <input type="hidden" name="ficha"    value="<?= $vistaFicha ?>">
-        <div class="d-flex gap-2 align-items-center flex-wrap">
-            <select name="estado" class="form-select form-select-sm" style="max-width:140px;" onchange="this.form.submit()">
-                <option value="">Todos los estados</option>
-                <option value="Activo"     <?= $filtroEstado==='Activo'     ?'selected':'' ?>>Activo</option>
-                <option value="Completado" <?= $filtroEstado==='Completado' ?'selected':'' ?>>Completado</option>
-                <option value="Sancionado" <?= $filtroEstado==='Sancionado' ?'selected':'' ?>>Sancionado</option>
-            </select>
-            <div class="input-group input-group-sm" style="max-width:240px;">
-                <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-                <input type="text" name="q" class="form-control border-start-0"
-                       placeholder="Buscar grupo, vocero…" value="<?= htmlspecialchars($busqueda) ?>">
-            </div>
-            <button type="submit" class="btn btn-success btn-sm">
-                <i class="fas fa-filter me-1"></i>Filtrar
-            </button>
-            <?php if ($filtroEstado || $busqueda): ?>
-            <a href="admin_grupos.php?programa=<?= $vistaPrograma ?>&ficha=<?= $vistaFicha ?>"
-               class="btn btn-sm btn-outline-secondary"><i class="fas fa-xmark"></i></a>
-            <?php endif; ?>
-        </div>
-    </div>
-</form>
+<?php if (empty($grupos)): ?>
+<div class="card border-0 shadow-sm text-center py-5 text-muted">
+    <i class="fas fa-people-group fa-3x mb-3 opacity-25 d-block"></i>
+    <p class="small mb-0">No hay grupos registrados en esta ficha.</p>
+</div>
+<?php else: ?>
 
-<!-- Tabla de grupos -->
-<div class="card shadow-sm border-0">
-    <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-        <h6 class="fw-bold mb-0">
-            <i class="fas fa-people-group text-success me-2"></i>
-            Grupos — <?= htmlspecialchars($fichaAct['nombre_programa']) ?>
-        </h6>
-        <span class="badge bg-secondary"><?= count($grupos) ?> grupo(s)</span>
-    </div>
-    <div class="card-body p-0">
-        <?php if (empty($grupos)): ?>
-        <div class="text-center py-5 text-muted">
-            <i class="fas fa-people-group fa-3x mb-3 opacity-25 d-block"></i>
-            <p class="small mb-0">No hay grupos registrados en esta ficha.</p>
-        </div>
-        <?php else: ?>
-        <div class="table-responsive">
-            <table class="table tabla-limpia align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Grupo</th>
-                        <th>Vocero</th>
-                        <th>Módulo</th>
-                        <th>Fecha Limpieza</th>
-                        <th class="text-center">Evidencia</th>
-                        <th>Estado</th>
-                        <th class="text-center">Integrantes</th>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($grupos as $g):
-                    $badge = match($g['estado']) {
-                        'Completado' => 'bg-primary',
-                        'Sancionado' => 'bg-danger',
-                        default      => 'bg-success',
-                    };
-                    $esHoy = date('Y-m-d', strtotime($g['fecha_limpieza'])) === date('Y-m-d');
-                ?>
-                <tr>
-                    <td class="fw-semibold small">
-                        <?= htmlspecialchars($g['nombre_grupo']) ?>
-                        <?php if ($esHoy): ?>
-                            <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem;">Hoy</span>
-                        <?php endif; ?>
-                    </td>
-                    <td class="small"><?= htmlspecialchars($g['vocero_nombres'] . ' ' . $g['vocero_apellidos']) ?></td>
-                    <td class="small text-muted"><?= htmlspecialchars($g['nombre_modulo']) ?></td>
-                    <td class="small"><?= date('d/m/Y', strtotime($g['fecha_limpieza'])) ?></td>
-                    <td class="text-center">
-                        <?php if ((int)$g['tiene_evidencia'] > 0): ?>
-                            <span class="text-success fw-bold fs-5">✓</span>
-                        <?php else: ?>
-                            <span class="text-danger">✗</span>
-                        <?php endif; ?>
-                    </td>
-                    <td><span class="badge <?= $badge ?>"><?= $g['estado'] ?></span></td>
-                    <td class="text-center">
-                        <a href="?programa=<?= $vistaPrograma ?>&ficha=<?= $vistaFicha ?>&grupo=<?= $g['id_grupo'] ?><?= $filtroEstado ? '&estado='.urlencode($filtroEstado) : '' ?><?= $busqueda ? '&q='.urlencode($busqueda) : '' ?>"
-                           class="btn btn-sm btn-outline-success" title="Ver integrantes">
-                            <i class="fas fa-users me-1"></i><?= (int)$g['total_integrantes'] ?>
-                        </a>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-        <?php endif; ?>
-    </div>
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <span class="text-muted small"><?= count($grupos) ?> grupo(s) · ordenados por creación</span>
 </div>
 
-<!-- Panel integrantes -->
-<?php if ($grupoDetalle): ?>
-<div class="card shadow-sm border-0 mt-4" style="border-top:3px solid #39a900 !important;">
-    <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-        <h6 class="fw-bold mb-0">
-            <i class="fas fa-users text-success me-2"></i>
-            Integrantes — <?= htmlspecialchars($grupoDetalle['nombre_grupo']) ?>
-            <span class="text-muted fw-normal small ms-2">
-                <?= htmlspecialchars($grupoDetalle['nombre_modulo']) ?> · <?= date('d/m/Y', strtotime($grupoDetalle['fecha_limpieza'])) ?>
+<?php foreach ($grupos as $numGrupo => $g):
+    $integrantes = $integrantesPorGrupo[(int)$g['id_grupo']] ?? [];
+    $badge = match($g['estado']) {
+        'Completado' => ['bg'=>'#dbeafe','color'=>'#1d4ed8','label'=>'Completado'],
+        'Sancionado' => ['bg'=>'#fee2e2','color'=>'#991b1b','label'=>'Sancionado'],
+        default      => ['bg'=>'#dcfce7','color'=>'#166534','label'=>'Activo'],
+    };
+    $esHoy = date('Y-m-d', strtotime($g['fecha_limpieza'])) === date('Y-m-d');
+?>
+<div class="card border-0 shadow-sm mb-3" style="border-radius:12px; overflow:hidden;">
+
+    <!-- Cabecera del grupo -->
+    <div class="d-flex align-items-center gap-3 px-4 py-3"
+         style="background:#f9fafb; border-bottom:1px solid #e5e7eb;">
+        <!-- Número de grupo -->
+        <div style="width:38px;height:38px;border-radius:9px;background:#39a900;
+                    display:flex;align-items:center;justify-content:center;
+                    color:#fff;font-weight:700;font-size:1rem;flex-shrink:0;">
+            <?= $numGrupo + 1 ?>
+        </div>
+        <div class="flex-grow-1">
+            <div class="fw-bold" style="font-size:.95rem;color:#111827;">
+                <?= htmlspecialchars($g['nombre_grupo']) ?>
+                <?php if ($esHoy): ?>
+                    <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem;">Hoy</span>
+                <?php endif; ?>
+            </div>
+            <div class="text-muted" style="font-size:.78rem;">
+                <i class="fas fa-user-tie me-1 text-success"></i>
+                <?= htmlspecialchars($g['vocero_nombres'] . ' ' . $g['vocero_apellidos']) ?>
+                <span class="mx-2">·</span>
+                <i class="fas fa-door-open me-1"></i><?= htmlspecialchars($g['nombre_modulo']) ?>
+                <span class="mx-2">·</span>
+                <i class="fas fa-calendar me-1"></i><?= date('d/m/Y', strtotime($g['fecha_limpieza'])) ?>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-shrink-0">
+            <!-- Evidencia -->
+            <?php if ((int)$g['tiene_evidencia'] > 0): ?>
+                <span title="Con evidencia"
+                      style="background:#dcfce7;color:#166534;padding:.25rem .6rem;
+                             border-radius:20px;font-size:.72rem;font-weight:600;">
+                    <i class="fas fa-check me-1"></i>Evidencia
+                </span>
+            <?php else: ?>
+                <span style="background:#fee2e2;color:#991b1b;padding:.25rem .6rem;
+                              border-radius:20px;font-size:.72rem;font-weight:600;">
+                    <i class="fas fa-xmark me-1"></i>Sin evidencia
+                </span>
+            <?php endif; ?>
+            <!-- Estado -->
+            <span style="background:<?= $badge['bg'] ?>;color:<?= $badge['color'] ?>;
+                         padding:.25rem .65rem;border-radius:20px;
+                         font-size:.72rem;font-weight:600;">
+                <?= $badge['label'] ?>
             </span>
-        </h6>
-        <div class="d-flex gap-2 align-items-center">
-            <span class="badge bg-success"><?= count($integrantesDet) ?> integrante(s)</span>
-            <a href="admin_grupos.php?programa=<?= $vistaPrograma ?>&ficha=<?= $vistaFicha ?>"
-               class="btn btn-sm btn-outline-secondary"><i class="fas fa-xmark"></i></a>
+            <!-- Conteo integrantes -->
+            <span style="background:#f3f4f6;color:#374151;padding:.25rem .65rem;
+                         border-radius:20px;font-size:.72rem;font-weight:600;">
+                <i class="fas fa-users me-1"></i><?= count($integrantes) ?>
+            </span>
         </div>
     </div>
-    <div class="card-body p-0">
-        <?php if (empty($integrantesDet)): ?>
-            <div class="text-center py-4 text-muted small">No hay integrantes.</div>
-        <?php else: ?>
-        <table class="table tabla-limpia align-middle mb-0">
-            <thead class="table-light">
-                <tr><th>#</th><th>Apellidos</th><th>Nombres</th><th>Documento</th><th>Celular</th><th>Correo</th></tr>
+
+    <!-- Integrantes -->
+    <?php if (empty($integrantes)): ?>
+    <div class="px-4 py-3 text-muted small">Sin integrantes registrados.</div>
+    <?php else: ?>
+    <div class="table-responsive">
+        <table class="table mb-0" style="font-size:.82rem;">
+            <thead>
+                <tr style="background:#f9fafb; border-bottom:1px solid #e5e7eb;">
+                    <th style="padding:.5rem 1rem;font-weight:700;color:#6b7280;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;">#</th>
+                    <th style="padding:.5rem .75rem;font-weight:700;color:#6b7280;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;">Apellidos</th>
+                    <th style="padding:.5rem .75rem;font-weight:700;color:#6b7280;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;">Nombres</th>
+                    <th style="padding:.5rem .75rem;font-weight:700;color:#6b7280;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;">Documento</th>
+                    <th style="padding:.5rem .75rem;font-weight:700;color:#6b7280;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;">Celular</th>
+                    <th style="padding:.5rem .75rem;font-weight:700;color:#6b7280;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;">Correo</th>
+                </tr>
             </thead>
             <tbody>
-            <?php foreach ($integrantesDet as $i => $ap): ?>
-            <tr>
-                <td class="text-muted small"><?= $i + 1 ?></td>
-                <td class="fw-semibold small"><?= htmlspecialchars($ap['apellidos']) ?></td>
-                <td class="small"><?= htmlspecialchars($ap['nombres']) ?></td>
-                <td class="small text-muted"><?= htmlspecialchars($ap['documento'] ?? '—') ?></td>
-                <td class="small">
+            <?php foreach ($integrantes as $idx => $ap): ?>
+            <tr style="border-bottom:1px solid #f3f4f6;">
+                <td style="padding:.55rem 1rem;color:#9ca3af;"><?= $idx + 1 ?></td>
+                <td style="padding:.55rem .75rem;font-weight:600;color:#111827;"><?= htmlspecialchars($ap['apellidos']) ?></td>
+                <td style="padding:.55rem .75rem;color:#374151;"><?= htmlspecialchars($ap['nombres']) ?></td>
+                <td style="padding:.55rem .75rem;color:#6b7280;"><?= htmlspecialchars($ap['documento'] ?? '—') ?></td>
+                <td style="padding:.55rem .75rem;">
                     <?php if (!empty($ap['celular'])): ?>
-                        <a href="tel:<?= htmlspecialchars($ap['celular']) ?>" class="text-decoration-none text-dark">
-                            <i class="fas fa-phone text-success me-1" style="font-size:.72rem;"></i><?= htmlspecialchars($ap['celular']) ?>
+                        <a href="tel:<?= htmlspecialchars($ap['celular']) ?>"
+                           class="text-decoration-none text-dark">
+                            <i class="fas fa-phone text-success me-1" style="font-size:.68rem;"></i><?= htmlspecialchars($ap['celular']) ?>
                         </a>
                     <?php else: ?><span class="text-muted">—</span><?php endif; ?>
                 </td>
-                <td class="small">
+                <td style="padding:.55rem .75rem;">
                     <?php if (!empty($ap['correo'])): ?>
                         <a href="mailto:<?= htmlspecialchars($ap['correo']) ?>"
                            class="text-decoration-none text-dark text-truncate d-inline-block"
-                           style="max-width:160px;" title="<?= htmlspecialchars($ap['correo']) ?>">
-                            <i class="fas fa-envelope text-success me-1" style="font-size:.72rem;"></i><?= htmlspecialchars($ap['correo']) ?>
+                           style="max-width:180px;" title="<?= htmlspecialchars($ap['correo']) ?>">
+                            <i class="fas fa-envelope text-success me-1" style="font-size:.68rem;"></i><?= htmlspecialchars($ap['correo']) ?>
                         </a>
                     <?php else: ?><span class="text-muted">—</span><?php endif; ?>
                 </td>
@@ -481,11 +446,13 @@ $totalEv = (int)$stmtTotEv->fetchColumn();
             <?php endforeach; ?>
             </tbody>
         </table>
-        <?php endif; ?>
     </div>
-</div>
-<?php endif; ?>
+    <?php endif; ?>
 
+</div><!-- /card grupo -->
+<?php endforeach; ?>
+
+<?php endif; ?>
 <?php endif; ?>
 
 <style>

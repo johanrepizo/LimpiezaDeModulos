@@ -1,5 +1,5 @@
 <?php
-$titulo = 'Mis Evidencias';
+$titulo = 'Historial de Evidencias';
 if (session_status() === PHP_SESSION_NONE) session_start();
 if (!isset($_SESSION['usuario']) || (int)$_SESSION['usuario']['rol'] !== 2) {
     header("Location: ../usuarios/login.php"); exit;
@@ -15,467 +15,367 @@ unset($_SESSION['alert']);
 
 $idUsuario = (int)$_SESSION['usuario']['id_usuario'];
 
-// Datos del vocero
+// Vocero
 $stmtV = $db->prepare("SELECT * FROM voceros WHERE id_usuario = :id AND activo = 1 LIMIT 1");
 $stmtV->execute([':id' => $idUsuario]);
 $vocero   = $stmtV->fetch(PDO::FETCH_ASSOC);
 $idVocero = $vocero ? (int)$vocero['id_vocero'] : 0;
+$idFicha  = $vocero ? (int)$vocero['id_ficha']  : 0;
 
-// Asignaciones de la ficha (para el selector de módulo)
-$stmtAsig = $db->prepare(
-    "SELECT a.id_asignacion, m.id_modulo, m.nombre AS nombre_modulo,
-            a.fecha_inicio, a.fecha_fin, a.fecha_limite_evidencia, a.estado
-     FROM asignaciones a
-     JOIN modulos m ON m.id_modulo = a.id_modulo
+// Todos los turnos de la ficha (pasados y futuros)
+// con info de evidencias y grupo
+$stmtTurnos = $db->prepare(
+    "SELECT
+        t.fecha_turno,
+        t.id_turno,
+        t.estado        AS turno_estado,
+        g.id_grupo,
+        g.nombre_grupo,
+        m.nombre        AS nombre_modulo,
+        (SELECT COUNT(DISTINCT e.tipo)
+         FROM evidencias e
+         WHERE e.id_turno = t.id_turno
+           AND e.tipo IN ('antes','despues')) AS fotos_subidas
+     FROM turnos t
+     JOIN asignaciones a ON a.id_asignacion = t.id_asignacion
+     JOIN modulos m      ON m.id_modulo     = a.id_modulo
+     LEFT JOIN grupos g  ON g.id_grupo      = t.id_grupo
      WHERE a.id_ficha = :fic
-     ORDER BY a.estado DESC, a.fecha_limite_evidencia DESC"
+     ORDER BY t.fecha_turno ASC"
 );
-$stmtAsig->execute([':fic' => $vocero['id_ficha'] ?? 0]);
-$asignaciones = $stmtAsig->fetchAll(PDO::FETCH_ASSOC);
+$stmtTurnos->execute([':fic' => $idFicha]);
+$turnos = $stmtTurnos->fetchAll(PDO::FETCH_ASSOC);
 
-// Filtro por asignación seleccionada
-$filtroAsig = (int)($_GET['asig'] ?? 0);
+$hoy = date('Y-m-d');
 
-// Grupos del vocero con conteo de evidencias
-$sqlGrupos = "SELECT g.id_grupo, g.nombre_grupo, g.fecha_limpieza, g.estado,
-                     a.id_asignacion, a.fecha_limite_evidencia,
-                     m.nombre AS nombre_modulo,
-                     (SELECT COUNT(*) FROM evidencias e WHERE e.id_grupo = g.id_grupo) AS tiene_evidencia
-              FROM grupos g
-              JOIN asignaciones a ON a.id_asignacion = g.id_asignacion
-              JOIN modulos m ON m.id_modulo = a.id_modulo
-              WHERE g.id_vocero = :idv";
-if ($filtroAsig) $sqlGrupos .= " AND a.id_asignacion = :asig";
-$sqlGrupos .= " ORDER BY a.fecha_limite_evidencia DESC, g.fecha_limpieza DESC";
-$stmtGrupos = $db->prepare($sqlGrupos);
-$paramsGrupos = [':idv' => $idVocero];
-if ($filtroAsig) $paramsGrupos[':asig'] = $filtroAsig;
-$stmtGrupos->execute($paramsGrupos);
-$grupos = $stmtGrupos->fetchAll(PDO::FETCH_ASSOC);
+// Construir eventos para FullCalendar
+$eventos = [];
+foreach ($turnos as $t) {
+    $fecha      = $t['fecha_turno'];
+    $esPasado   = $fecha < $hoy;
+    $esHoy      = $fecha === $hoy;
+    $tieneEv    = (int)$t['fotos_subidas'] >= 2;
+    $sinGrupo   = empty($t['id_grupo']);
 
-// Historial de evidencias del vocero (con filtro opcional)
-$evidencias = (new Evidencia($db))->obtenerPorVocero($idVocero, $filtroAsig ?: null);
+    if ($tieneEv) {
+        // Verde — evidencias entregadas
+        $color      = '#16a34a';
+        $textColor  = '#fff';
+        $estado     = 'entregada';
+    } elseif ($esPasado || $esHoy) {
+        if ($sinGrupo) {
+            // Gris — pasado sin grupo asignado
+            $color     = '#9ca3af';
+            $textColor = '#fff';
+            $estado    = 'sin_grupo';
+        } else {
+            // Rojo — venció sin evidencia
+            $color     = '#ef4444';
+            $textColor = '#fff';
+            $estado    = 'vencida';
+        }
+    } else {
+        // Gris claro — fecha futura
+        $color     = '#d1d5db';
+        $textColor = '#374151';
+        $estado    = 'proxima';
+    }
 
-// Totales
-$totalEv       = count($evidencias);
-$totalPendientes = count(array_filter($grupos, fn($g) => (int)$g['tiene_evidencia'] === 0));
-$totalVencidos   = count(array_filter($grupos, fn($g) =>
-    (int)$g['tiene_evidencia'] === 0 && strtotime($g['fecha_limite_evidencia']) < time()));
+    $titulo_ev = $t['nombre_grupo'] ?? ($t['nombre_modulo'] ?? 'Limpieza');
 
+    $eventos[] = [
+        'id'         => $t['id_turno'],
+        'title'      => $titulo_ev,
+        'start'      => $fecha,
+        'color'      => $color,
+        'textColor'  => $textColor,
+        'extendedProps' => [
+            'estado'        => $estado,
+            'id_turno'      => $t['id_turno'],
+            'id_grupo'      => $t['id_grupo'],
+            'nombre_grupo'  => $t['nombre_grupo']  ?? '',
+            'nombre_modulo' => $t['nombre_modulo'] ?? '',
+            'fotos'         => (int)$t['fotos_subidas'],
+        ],
+    ];
+}
+
+// Evidencias por turno (para el modal al hacer clic)
+// Se cargan vía AJAX desde VoceroController
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
-<!-- ══ CABECERA ══════════════════════════════════════════════════════════════ -->
-<div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
+<div class="d-flex justify-content-between align-items-start mb-4">
     <div>
-        <h4 class="fw-bold mb-1">
-            <i class="fas fa-images text-success me-2"></i>Mis Evidencias de Módulos
+        <h4 class="fw-bold mb-0">
+            <i class="fas fa-calendar-days text-success me-2"></i>Historial de Evidencias
         </h4>
         <p class="text-muted small mb-0">
-            Registra las fotografías que demuestran la limpieza realizada en cada módulo asignado.
+            Calendario de limpiezas — haz clic en una fecha para ver las evidencias
         </p>
     </div>
 </div>
 
-<!-- ══ STATS ═════════════════════════════════════════════════════════════════ -->
-<div class="row g-3 mb-4">
-    <div class="col-sm-4">
-        <div class="stat-card bg-white">
-            <div class="d-flex align-items-center gap-3">
-                <div class="stat-icon" style="background:rgba(57,169,0,.12); color:#39a900;">
-                    <i class="fas fa-check-circle"></i>
-                </div>
-                <div>
-                    <div class="fs-4 fw-bold"><?= $totalEv ?></div>
-                    <div class="text-muted small">Evidencias enviadas</div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-4">
-        <div class="stat-card bg-white">
-            <div class="d-flex align-items-center gap-3">
-                <div class="stat-icon" style="background:rgba(234,179,8,.1); color:#d97706;">
-                    <i class="fas fa-clock"></i>
-                </div>
-                <div>
-                    <div class="fs-4 fw-bold"><?= $totalPendientes ?></div>
-                    <div class="text-muted small">Grupos sin evidencia</div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-4">
-        <div class="stat-card bg-white">
-            <div class="d-flex align-items-center gap-3">
-                <div class="stat-icon" style="background:rgba(239,68,68,.1); color:#ef4444;">
-                    <i class="fas fa-triangle-exclamation"></i>
-                </div>
-                <div>
-                    <div class="fs-4 fw-bold"><?= $totalVencidos ?></div>
-                    <div class="text-muted small">Vencidos sin evidencia</div>
-                </div>
-            </div>
-        </div>
+<!-- Leyenda -->
+<div class="d-flex gap-3 flex-wrap mb-3" style="font-size:.8rem;">
+    <span class="d-flex align-items-center gap-1">
+        <span style="width:14px;height:14px;border-radius:4px;background:#16a34a;display:inline-block;"></span>
+        Evidencia entregada
+    </span>
+    <span class="d-flex align-items-center gap-1">
+        <span style="width:14px;height:14px;border-radius:4px;background:#ef4444;display:inline-block;"></span>
+        Vencida sin evidencia
+    </span>
+    <span class="d-flex align-items-center gap-1">
+        <span style="width:14px;height:14px;border-radius:4px;background:#d1d5db;display:inline-block;"></span>
+        Próxima limpieza
+    </span>
+    <span class="d-flex align-items-center gap-1">
+        <span style="width:14px;height:14px;border-radius:4px;background:#9ca3af;display:inline-block;"></span>
+        Sin grupo asignado
+    </span>
+</div>
+
+<!-- Calendario -->
+<div class="card border-0 shadow-sm" style="border-radius:14px;overflow:hidden;">
+    <div class="card-body p-3 p-md-4">
+        <div id="calendario"></div>
     </div>
 </div>
 
-<!-- ══ FILTRO POR MÓDULO ══════════════════════════════════════════════════════ -->
-<div class="card shadow-sm border-0 mb-4">
-    <div class="card-body py-2 px-3">
-        <form method="GET" class="d-flex align-items-center gap-3 flex-wrap">
-            <label class="fw-semibold small text-nowrap mb-0">
-                <i class="fas fa-filter text-success me-1"></i>Filtrar módulo:
-            </label>
-            <select name="asig" class="form-select form-select-sm" style="max-width:380px;"
-                    onchange="this.form.submit()">
-                <option value="">— Todos los módulos —</option>
-                <?php foreach ($asignaciones as $a): ?>
-                <option value="<?= $a['id_asignacion'] ?>"
-                    <?= $filtroAsig === (int)$a['id_asignacion'] ? 'selected' : '' ?>>
-                    <?= htmlspecialchars($a['nombre_modulo']) ?>
-                    (<?= htmlspecialchars($a['estado']) ?> · Límite: <?= date('d/m/Y', strtotime($a['fecha_limite_evidencia'])) ?>)
-                </option>
-                <?php endforeach; ?>
-            </select>
-            <?php if ($filtroAsig): ?>
-                <a href="vocero_evidencias.php" class="btn btn-sm btn-outline-secondary">
-                    <i class="fas fa-xmark me-1"></i>Limpiar
-                </a>
-            <?php endif; ?>
-        </form>
-    </div>
-</div>
-
-<!-- ══ TABLA DE GRUPOS ════════════════════════════════════════════════════════ -->
-<div class="card shadow-sm mb-4" style="border-left:4px solid #39a900;">
-    <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-        <h6 class="fw-bold mb-0">
-            <i class="fas fa-people-group text-success me-2"></i>Estado de mis Grupos
-        </h6>
-        <span class="badge bg-secondary"><?= count($grupos) ?> grupo(s)</span>
-    </div>
-    <div class="card-body p-0">
-        <?php if (empty($grupos)): ?>
-        <div class="text-center py-5 text-muted">
-            <i class="fas fa-people-group fa-2x mb-2 opacity-25 d-block"></i>
-            <span class="small">No tienes grupos registrados<?= $filtroAsig ? ' en este módulo' : '' ?>.</span>
-        </div>
-        <?php else: ?>
-        <div class="table-responsive">
-            <table class="table tabla-limpia align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Módulo</th>
-                        <th>Nombre del Grupo</th>
-                        <th>Fecha Limpieza</th>
-                        <th>Plazo Evidencia</th>
-                        <th>Estado</th>
-                        <th class="text-center">Evidencia</th>
-                        <th class="text-center">Acción</th>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($grupos as $g):
-                    $vencido  = strtotime($g['fecha_limite_evidencia']) < time();
-                    $tieneEv  = (int)$g['tiene_evidencia'] > 0;
-                    $diasRest = (int) ceil((strtotime($g['fecha_limite_evidencia']) - time()) / 86400);
-                ?>
-                <tr class="<?= (!$tieneEv && $vencido) ? 'table-danger bg-opacity-10' : '' ?>">
-                    <td class="small fw-semibold"><?= htmlspecialchars($g['nombre_modulo']) ?></td>
-                    <td class="small"><?= htmlspecialchars($g['nombre_grupo']) ?></td>
-                    <td class="small"><?= date('d/m/Y', strtotime($g['fecha_limpieza'])) ?></td>
-                    <td class="small <?= (!$tieneEv && $vencido) ? 'text-danger fw-semibold' : '' ?>">
-                        <?= date('d/m/Y H:i', strtotime($g['fecha_limite_evidencia'])) ?>
-                        <?php if (!$tieneEv && !$vencido && $diasRest <= 2): ?>
-                            <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem;">
-                                ¡<?= $diasRest ?>d!
-                            </span>
-                        <?php endif; ?>
-                    </td>
-                    <td>
-                        <?php if ($tieneEv): ?>
-                            <span class="badge bg-success">
-                                <i class="fas fa-check me-1"></i>Completado
-                            </span>
-                        <?php elseif ($vencido): ?>
-                            <span class="badge bg-danger">
-                                <i class="fas fa-xmark me-1"></i>Vencido
-                            </span>
-                        <?php else: ?>
-                            <span class="badge bg-warning text-dark">
-                                <i class="fas fa-clock me-1"></i>Pendiente
-                            </span>
-                        <?php endif; ?>
-                    </td>
-                    <td class="text-center">
-                        <?php if ($tieneEv): ?>
-                            <span class="text-success fs-5 fw-bold" title="Evidencia entregada">✓</span>
-                        <?php else: ?>
-                            <span class="text-muted small">—</span>
-                        <?php endif; ?>
-                    </td>
-                    <td class="text-center">
-                        <?php if (!$tieneEv && !$vencido): ?>
-                            <button class="btn btn-sm btn-success fw-semibold"
-                                onclick="abrirModalSubir(
-                                    <?= $g['id_grupo'] ?>,
-                                    <?= json_encode($g['nombre_grupo']) ?>,
-                                    <?= json_encode($g['nombre_modulo']) ?>,
-                                    <?= json_encode(date('d/m/Y H:i', strtotime($g['fecha_limite_evidencia']))) ?>
-                                )">
-                                <i class="fas fa-upload me-1"></i>Subir foto
-                            </button>
-                        <?php elseif ($tieneEv): ?>
-                            <button class="btn btn-sm btn-outline-primary"
-                                    onclick="verEvidencia(<?= $g['id_grupo'] ?>)">
-                                <i class="fas fa-eye me-1"></i>Ver
-                            </button>
-                        <?php else: ?>
-                            <span class="text-danger small">
-                                <i class="fas fa-lock me-1"></i>Vencido
-                            </span>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-        <?php endif; ?>
-    </div>
-</div>
-
-<!-- ══ GALERÍA DE EVIDENCIAS ══════════════════════════════════════════════════ -->
-<div class="card shadow-sm border-0 mb-4">
-    <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-        <h6 class="fw-bold mb-0">
-            <i class="fas fa-photo-film text-success me-2"></i>Galería de Evidencias
-        </h6>
-        <span class="badge bg-success"><?= $totalEv ?> foto(s)</span>
-    </div>
-    <div class="card-body">
-        <?php if (empty($evidencias)): ?>
-        <div class="text-center py-5 text-muted">
-            <i class="fas fa-images fa-3x mb-3 opacity-25 d-block"></i>
-            <p class="small mb-0">
-                Aún no has registrado evidencias<?= $filtroAsig ? ' en este módulo' : '' ?>.
-            </p>
-        </div>
-        <?php else: ?>
-        <div class="row g-3">
-            <?php foreach ($evidencias as $ev): ?>
-            <div class="col-md-4 col-sm-6">
-                <div class="card border-0 shadow-sm h-100 ev-card"
-                     style="border-radius:10px; overflow:hidden; cursor:pointer;"
-                     onclick="abrirLightbox(
-                         <?= json_encode('../../public/' . $ev['ruta_archivo']) ?>,
-                         <?= json_encode($ev['nombre_grupo']) ?>,
-                         <?= json_encode($ev['nombre_modulo']) ?>,
-                         <?= json_encode(date('d/m/Y H:i', strtotime($ev['fecha_subida']))) ?>
-                     )">
-                    <div class="position-relative ev-img-wrap">
-                        <img src="../../public/<?= htmlspecialchars($ev['ruta_archivo']) ?>"
-                             alt="Evidencia <?= htmlspecialchars($ev['nombre_grupo']) ?>"
-                             style="object-fit:cover; height:200px; width:100%;">
-                        <div class="ev-overlay d-flex flex-column justify-content-center align-items-center text-white text-center p-2">
-                            <i class="fas fa-expand fa-lg mb-1"></i>
-                            <div class="fw-semibold" style="font-size:.8rem;">
-                                <?= htmlspecialchars($ev['nombre_grupo']) ?>
-                            </div>
-                            <div style="font-size:.72rem; opacity:.85;">
-                                <?= htmlspecialchars($ev['nombre_modulo']) ?>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-footer bg-white border-0 pt-2 pb-2 px-3">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="small fw-semibold text-truncate" style="max-width:65%;">
-                                <?= htmlspecialchars($ev['nombre_modulo']) ?>
-                            </span>
-                            <span class="text-muted" style="font-size:.75rem;">
-                                <?= date('d/m/Y', strtotime($ev['fecha_subida'])) ?>
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <?php endforeach; ?>
-        </div>
-        <?php endif; ?>
-    </div>
-</div>
-
-<!-- ══ MODAL SUBIR EVIDENCIA ═════════════════════════════════════════════════ -->
-<div class="modal fade" id="modalSubirEvidencia" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+<!-- Modal detalle del día -->
+<div class="modal fade" id="modalDia" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content border-0 shadow">
-
-            <div class="modal-header border-0" style="background:#0f2200; color:#fff;">
+            <div class="modal-header border-0" style="background:#0f2200;color:#fff;">
                 <div>
-                    <h5 class="modal-title fw-bold mb-0">
-                        <i class="fas fa-camera me-2"></i>Subir Evidencia Fotográfica
-                    </h5>
-                    <div class="small mt-1" style="opacity:.8;">
-                        Grupo: <strong id="modalTituloGrupo">—</strong>
-                    </div>
+                    <h6 class="modal-title fw-bold mb-0" id="modalDiaTitulo">
+                        <i class="fas fa-calendar-day me-2 text-success"></i>
+                    </h6>
+                    <div class="small mt-1 opacity-75" id="modalDiaSub"></div>
                 </div>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-
-            <form action="../../controllers/VoceroController.php" method="POST"
-                  enctype="multipart/form-data">
-                <input type="hidden" name="accion" value="subir_evidencia">
-                <input type="hidden" name="id_grupo" id="modalIdGrupo">
-
-                <div class="modal-body px-4">
-
-                    <!-- Info del grupo -->
-                    <div class="rounded p-3 mb-3" style="background:#f0f9f0; border:1px solid #d4edda;">
-                        <div class="d-flex flex-wrap gap-2">
-                            <span class="badge bg-success px-3 py-2">
-                                <i class="fas fa-door-open me-1"></i>
-                                Módulo: <span id="modalInfoModulo">—</span>
-                            </span>
-                            <span class="badge bg-warning text-dark px-3 py-2">
-                                <i class="fas fa-calendar-xmark me-1"></i>
-                                Plazo: <span id="modalInfoPlazo">—</span>
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- Input de foto -->
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold small">
-                            <i class="fas fa-image me-1 text-success"></i>
-                            Seleccionar fotografía <span class="text-danger">*</span>
-                        </label>
-                        <input type="file" class="form-control form-control-sm" name="evidencia"
-                               id="inputFoto" accept=".jpg,.jpeg,.png"
-                               onchange="previsualizarFoto(this)" required>
-                        <div class="form-text text-muted mt-1">
-                            <i class="fas fa-circle-info me-1"></i>
-                            La foto debe mostrar claramente el módulo limpio.
-                            Formatos: JPG, PNG. Máx. 10 MB.
-                        </div>
-                    </div>
-
-                    <!-- Previsualización -->
-                    <div id="previewBox" class="d-none mb-3 text-center">
-                        <div class="small text-muted mb-1 fw-semibold">Vista previa:</div>
-                        <img id="previewImg" src="#" alt="Vista previa"
-                             class="img-fluid rounded shadow-sm"
-                             style="max-height:220px; border:2px solid #39a900;">
-                    </div>
-
+            <div class="modal-body p-0" id="modalDiaCuerpo">
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-spinner fa-spin fa-lg d-block mb-2"></i>
+                    Cargando…
                 </div>
-
-                <div class="modal-footer border-0 px-4 pb-4 pt-0">
-                    <button type="button" class="btn btn-outline-secondary"
-                            data-bs-dismiss="modal">
-                        <i class="fas fa-xmark me-1"></i>Cancelar
-                    </button>
-                    <button type="submit" class="btn btn-success fw-bold">
-                        <i class="fas fa-paper-plane me-1"></i>Enviar Evidencia
-                    </button>
-                </div>
-            </form>
-
+            </div>
         </div>
     </div>
 </div>
 
-<!-- ══ ESTILOS GALERÍA ════════════════════════════════════════════════════════ -->
+<!-- FullCalendar -->
+<link  href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/locales/es.global.min.js"></script>
+
 <style>
-.ev-img-wrap { position: relative; overflow: hidden; }
-.ev-overlay {
-    position: absolute; inset: 0;
-    background: rgba(0,0,0,.6);
-    opacity: 0;
-    transition: opacity .25s ease;
+/* ── FullCalendar overrides ── */
+#calendario { font-family: inherit; }
+
+.fc .fc-toolbar-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #111827;
 }
-.ev-card:hover .ev-overlay { opacity: 1; }
-.ev-card:hover img { transform: scale(1.04); transition: transform .3s ease; }
+.fc .fc-button {
+    background: #39a900 !important;
+    border-color: #39a900 !important;
+    font-size: .82rem !important;
+    padding: .3rem .75rem !important;
+    border-radius: 7px !important;
+}
+.fc .fc-button:hover { background: #2d8400 !important; border-color: #2d8400 !important; }
+.fc .fc-button-active { background: #2d8400 !important; }
+
+.fc .fc-daygrid-day-number {
+    font-size: .82rem;
+    font-weight: 600;
+    color: #374151;
+    padding: .3rem .5rem;
+}
+.fc .fc-day-today { background: rgba(57,169,0,.06) !important; }
+.fc .fc-day-today .fc-daygrid-day-number { color: #39a900; }
+
+.fc-event {
+    border-radius: 6px !important;
+    border: none !important;
+    font-size: .75rem !important;
+    font-weight: 600 !important;
+    padding: .1rem .35rem !important;
+    cursor: pointer !important;
+}
+.fc-daygrid-event-dot { display: none !important; }
+
+/* Par de fotos en modal */
+.par-modal {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .75rem;
+    padding: 1.25rem;
+}
+@media (max-width: 500px) { .par-modal { grid-template-columns: 1fr; } }
+
+.foto-modal { position: relative; border-radius: 10px; overflow: hidden; }
+.foto-modal img {
+    width: 100%; height: 220px; object-fit: cover; display: block;
+    cursor: pointer; transition: transform .3s;
+}
+.foto-modal:hover img { transform: scale(1.03); }
+.foto-label {
+    position: absolute; top: .5rem; left: .5rem;
+    padding: .18rem .55rem; border-radius: 20px;
+    font-size: .7rem; font-weight: 700;
+}
+.label-antes   { background: rgba(234,179,8,.9);  color: #78350f; }
+.label-despues { background: rgba(22,163,74,.9);   color: #fff; }
+
+.sin-foto {
+    height: 220px; background: #f3f4f6; border-radius: 10px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    color: #9ca3af; font-size: .8rem; gap: .4rem;
+}
+
+.estado-banner {
+    padding: .75rem 1.25rem;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex; align-items: center; gap: .75rem;
+    font-size: .85rem;
+}
 </style>
 
-<!-- ══ JAVASCRIPT ══════════════════════════════════════════════════════════════ -->
 <script>
-function abrirModalSubir(idGrupo, nombreGrupo, nombreModulo, plazo) {
-    document.getElementById('modalIdGrupo').value      = idGrupo;
-    document.getElementById('modalTituloGrupo').textContent = nombreGrupo;
-    document.getElementById('modalInfoModulo').textContent  = nombreModulo;
-    document.getElementById('modalInfoPlazo').textContent   = plazo;
-    document.getElementById('previewBox').classList.add('d-none');
-    document.getElementById('previewImg').src  = '#';
-    document.getElementById('inputFoto').value = '';
-    new bootstrap.Modal(document.getElementById('modalSubirEvidencia')).show();
-}
+const eventosData = <?= json_encode($eventos, JSON_UNESCAPED_UNICODE) ?>;
+const idVocero    = <?= $idVocero ?>;
 
-function previsualizarFoto(input) {
-    const box = document.getElementById('previewBox');
-    const img = document.getElementById('previewImg');
-    if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = e => {
-            img.src = e.target.result;
-            box.classList.remove('d-none');
-        };
-        reader.readAsDataURL(input.files[0]);
-    } else {
-        box.classList.add('d-none');
+document.addEventListener('DOMContentLoaded', function () {
+
+    const cal = new FullCalendar.Calendar(document.getElementById('calendario'), {
+        locale:         'es',
+        initialView:    'dayGridMonth',
+        height:         'auto',
+        headerToolbar: {
+            left:   'prev,next today',
+            center: 'title',
+            right:  'dayGridMonth,dayGridYear'
+        },
+        buttonText: { today: 'Hoy', month: 'Mes', year: 'Año' },
+        events: eventosData,
+        eventClick: function (info) {
+            const p = info.event.extendedProps;
+            abrirModalDia(
+                info.event.startStr,
+                p.id_turno,
+                p.id_grupo,
+                p.nombre_grupo,
+                p.nombre_modulo,
+                p.estado,
+                p.fotos
+            );
+        },
+        dayMaxEvents: 3,
+        moreLinkText: n => `+${n} más`,
+    });
+
+    cal.render();
+});
+
+function abrirModalDia(fecha, idTurno, idGrupo, nombreGrupo, modulo, estado, fotos) {
+    const fechaFmt = new Date(fecha + 'T12:00:00').toLocaleDateString('es-CO', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+
+    document.getElementById('modalDiaTitulo').innerHTML =
+        '<i class="fas fa-calendar-day me-2 text-success"></i>' + fechaFmt;
+    document.getElementById('modalDiaSub').textContent =
+        modulo + (nombreGrupo ? ' · ' + nombreGrupo : '');
+
+    const cuerpo = document.getElementById('modalDiaCuerpo');
+
+    // Banner de estado
+    const estadoHtml = {
+        entregada: `<div class="estado-banner" style="background:#f0fdf4;color:#166534;">
+            <i class="fas fa-circle-check fa-lg"></i>
+            <div><strong>Evidencias entregadas</strong><div class="text-muted" style="font-size:.78rem;">Se subieron las dos fotos correctamente.</div></div>
+        </div>`,
+        vencida: `<div class="estado-banner" style="background:#fef2f2;color:#991b1b;">
+            <i class="fas fa-circle-xmark fa-lg"></i>
+            <div><strong>No se subió evidencia</strong><div class="text-muted" style="font-size:.78rem;">El plazo de esta limpieza ya venció sin evidencia registrada.</div></div>
+        </div>`,
+        proxima: `<div class="estado-banner" style="background:#f9fafb;color:#374151;">
+            <i class="fas fa-clock fa-lg text-muted"></i>
+            <div><strong>Próxima limpieza</strong><div class="text-muted" style="font-size:.78rem;">Aún no ha llegado la fecha.</div></div>
+        </div>`,
+        sin_grupo: `<div class="estado-banner" style="background:#f3f4f6;color:#374151;">
+            <i class="fas fa-users-slash fa-lg text-muted"></i>
+            <div><strong>Sin grupo asignado</strong><div class="text-muted" style="font-size:.78rem;">No hay grupo responsable para este turno.</div></div>
+        </div>`,
+    }[estado] || '';
+
+    if (estado !== 'entregada' || !idTurno) {
+        cuerpo.innerHTML = estadoHtml +
+            '<div class="text-center py-5 text-muted small">No hay fotos para mostrar.</div>';
+        new bootstrap.Modal(document.getElementById('modalDia')).show();
+        return;
     }
-}
 
-function verEvidencia(idGrupo) {
-    fetch(`../../controllers/VoceroController.php?accion=get_evidencia&id_grupo=${idGrupo}`)
+    cuerpo.innerHTML = estadoHtml +
+        '<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-lg text-muted"></i></div>';
+    new bootstrap.Modal(document.getElementById('modalDia')).show();
+
+    // Cargar fotos vía AJAX
+    fetch(`../../controllers/VoceroController.php?accion=get_evidencia_turno&id_turno=${idTurno}`)
         .then(r => r.json())
         .then(data => {
-            if (data.ruta) {
-                Swal.fire({
-                    imageUrl: `../../public/${data.ruta}`,
-                    imageAlt: 'Evidencia',
-                    title: data.grupo,
-                    text: data.modulo + ' · ' + data.fecha,
-                    confirmButtonColor: '#39a900',
-                    width: 700
-                });
-            } else {
-                Swal.fire({
-                    icon: 'info',
-                    title: 'Sin evidencia',
-                    text: 'No se encontró evidencia registrada para este grupo.',
-                    confirmButtonColor: '#39a900'
-                });
+            const par = data.par || {};
+            let html = estadoHtml + '<div class="par-modal">';
+
+            const fotoHtml = (foto, tipo) => {
+                if (!foto) return `<div class="sin-foto">
+                    <i class="fas fa-${tipo==='antes'?'clock':'circle-check'} fa-xl opacity-30"></i>
+                    <span>Foto ${tipo} no disponible</span>
+                </div>`;
+                return `<div class="foto-modal" onclick="verFoto('../../public/${foto.ruta}','${tipo==='antes'?'Antes':'Después'} — ${nombreGrupo}','${modulo}')">
+                    <img src="../../public/${foto.ruta}" alt="${tipo}">
+                    <span class="foto-label ${tipo==='antes'?'label-antes':'label-despues'}">
+                        <i class="fas fa-${tipo==='antes'?'clock':'circle-check'} me-1"></i>${tipo==='antes'?'Antes':'Después'}
+                    </span>
+                </div>`;
+            };
+
+            html += fotoHtml(par.antes,   'antes');
+            html += fotoHtml(par.despues, 'despues');
+            html += '</div>';
+            if (data.observaciones) {
+                html += `<div class="px-4 pb-3 text-muted small">
+                    <i class="fas fa-comment me-1"></i>${data.observaciones}
+                </div>`;
             }
+            cuerpo.innerHTML = html;
         })
         .catch(() => {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'No se pudo obtener la evidencia. Intenta de nuevo.',
-                confirmButtonColor: '#39a900'
-            });
+            cuerpo.innerHTML = estadoHtml +
+                '<div class="text-center py-4 text-muted small">Error al cargar las fotos.</div>';
         });
 }
 
-function abrirLightbox(rutaImg, grupo, modulo, fecha) {
+function verFoto(url, titulo, sub) {
     Swal.fire({
-        imageUrl: rutaImg,
-        imageAlt: grupo,
-        title: grupo,
-        text: modulo + ' · ' + fecha,
-        confirmButtonColor: '#39a900',
-        width: 700,
-        showCloseButton: true
+        imageUrl: url, imageAlt: titulo,
+        title: titulo, text: sub,
+        confirmButtonColor: '#39a900', width: 720, showCloseButton: true
     });
 }
 
 <?php if ($alert): ?>
 document.addEventListener('DOMContentLoaded', function () {
     Swal.fire({
-        icon:  '<?= addslashes($alert['icon']) ?>',
+        icon: '<?= addslashes($alert['icon']) ?>',
         title: '<?= addslashes($alert['title']) ?>',
-        text:  '<?= addslashes($alert['text']) ?>',
+        text: '<?= addslashes($alert['text']) ?>',
         confirmButtonColor: '#39a900'
     });
 });

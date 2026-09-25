@@ -1,5 +1,16 @@
 <?php
 session_start();
+
+// Si ya hay sesión activa, redirigir directamente al dashboard correspondiente
+if (isset($_SESSION['usuario'])) {
+    $rol = (int)($_SESSION['usuario']['rol'] ?? 0);
+    if ($rol === 1) {
+        header("Location: ../dashboard/admin_dashboard.php"); exit;
+    } else {
+        header("Location: ../dashboard/vocero_dashboard.php"); exit;
+    }
+}
+
 $alert      = $_SESSION['alert'] ?? null;
 unset($_SESSION['alert']);
 $abrirPanel = ($_GET['panel'] ?? '') === 'recuperar';
@@ -219,12 +230,12 @@ $abrirPanel = ($_GET['panel'] ?? '') === 'recuperar';
         }
         .modal .input-group-text {
             background: var(--gray-50); border: 1.5px solid var(--gray-200);
-            border-right: 0; color: var(--gray-500);
+            border-right: 0; color: var(--gray-500); border-radius: 9px 0 0 9px;
         }
-        .modal .form-control { border-left: 0; }
+        .modal .form-control { border-left: 0; border-radius: 0 9px 9px 0; }
         .modal .btn-eye {
             background: var(--gray-50); border: 1.5px solid var(--gray-200);
-            border-left: 0; color: var(--gray-500);
+            border-left: 0; color: var(--gray-500); border-radius: 0 9px 9px 0;
         }
         .modal .btn-eye:hover { color: var(--green); }
         .req-item { font-size: .78rem; color: #adb5bd; margin-bottom: .2rem; transition: color .2s; }
@@ -351,6 +362,7 @@ $abrirPanel = ($_GET['panel'] ?? '') === 'recuperar';
     </div>
 </div>
 
+
 <!-- ══ Modal Recuperar ══════════════════════════════════════════════════════ -->
 <div class="modal fade" id="modalRecuperar" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -469,9 +481,9 @@ function togglePass(inputId, iconId) {
 }
 
 function checkStrength(val) {
-    const bar  = document.getElementById('strengthBar');
-    const text = document.getElementById('strengthText');
-    const box  = document.getElementById('reqBox');
+    const bar    = document.getElementById('strengthBar');
+    const text   = document.getElementById('strengthText');
+    const box    = document.getElementById('reqBox');
     const checks = {
         len:   val.length >= 8,
         upper: /[A-Z]/.test(val),
@@ -483,7 +495,7 @@ function checkStrength(val) {
         const el = document.getElementById('req-' + k);
         if (el) el.classList.toggle('ok', v);
     }
-    const score = Object.values(checks).filter(Boolean).length;
+    const score  = Object.values(checks).filter(Boolean).length;
     const levels = [
         { pct:'20%', color:'#ef4444', label:'Muy débil'  },
         { pct:'40%', color:'#f97316', label:'Débil'      },
