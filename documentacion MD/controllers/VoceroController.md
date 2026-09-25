@@ -4,7 +4,7 @@
 
 - **Archivo:** `VoceroController.php`
 - **Ruta en el proyecto:** `controllers/VoceroController.php`
-- **Cantidad total de líneas:** `417`
+- **Cantidad total de líneas:** `544`
 - **Tipo de archivo:** `PHP`
 - **Propósito general:** Controlador para el rol Vocero. Permite registrar y editar grupos de limpieza de la ficha, asignar aprendices y subir evidencias fotográficas de los turnos.
 
@@ -16,423 +16,550 @@ A continuación se presenta cada línea de código numerada de forma consecutiva
 
 | Línea | Código Fuente | Explicación Detallada |
 |---|---|---|
-| `1` | `<?php` | Apertura obligatoria de la etiqueta PHP para ejecución del código del lado del servidor. |
+| `1` | ``<?php`` | Apertura obligatoria de la etiqueta PHP para ejecución del código del lado del servidor. |
 | `2` | `if (session_status() === PHP_SESSION_NONE) session_start();` | Inicia o reanuda la sesión PHP del usuario si no se encontraba activa previamente. |
-| `3` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
+| `3` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
 | `4` | `require_once __DIR__ . '/../config/database.php';` | Importación e inclusión obligatoria del archivo de dependencia requerido: `require_once __DIR__ . '/../config/database.php';`. |
 | `5` | `require_once __DIR__ . '/../models/Grupo.php';` | Importación e inclusión obligatoria del archivo de dependencia requerido: `require_once __DIR__ . '/../models/Grupo.php';`. |
 | `6` | `require_once __DIR__ . '/../models/Evidencia.php';` | Importación e inclusión obligatoria del archivo de dependencia requerido: `require_once __DIR__ . '/../models/Evidencia.php';`. |
 | `7` | `require_once __DIR__ . '/../models/Ficha.php';` | Importación e inclusión obligatoria del archivo de dependencia requerido: `require_once __DIR__ . '/../models/Ficha.php';`. |
 | `8` | `require_once __DIR__ . '/../models/Notificacion.php';` | Importación e inclusión obligatoria del archivo de dependencia requerido: `require_once __DIR__ . '/../models/Notificacion.php';`. |
 | `9` | `require_once __DIR__ . '/../models/Turno.php';` | Importación e inclusión obligatoria del archivo de dependencia requerido: `require_once __DIR__ . '/../models/Turno.php';`. |
-| `10` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
+| `10` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
 | `11` | `class VoceroController` | Declaración de la clase del componente: `class VoceroController`. |
-| `12` | `{` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `13` | `    private PDO $db;` | Propiedad `private` de tipo `PDO` `$db` para el estado interno de la clase. |
-| `14` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `15` | `    public function __construct()` | Declaración de método o función con su firma y parámetros: `public function __construct()`. |
-| `16` | `    {` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `17` | `        $this->db = (new Database())->conectar();` | Instrucción de ejecución en el contexto del script: `$this->db = (new Database())->conectar();`. |
-| `18` | `    }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `19` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `20` | `    // ── GUARDAR GRUPO ──────────────────────────────────────────────────────` | Comentario de línea explicativo: `── GUARDAR GRUPO ──────────────────────────────────────────────────────`. |
-| `21` | `    public function guardarGrupo(): void` | Declaración de método o función con su firma y parámetros: `public function guardarGrupo(): void`. |
-| `22` | `    {` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `23` | `        $this->requireVocero();` | Instrucción de ejecución en el contexto del script: `$this->requireVocero();`. |
-| `24` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `25` | `        $idVocero     = $this->getIdVocero();` | Instrucción de ejecución en el contexto del script: `$idVocero     = $this->getIdVocero();`. |
-| `26` | `        $idAsignacion = (int)($_POST['id_asignacion'] ?? 0);` | Captura y sanitiza parámetros enviados por el cliente mediante petición HTTP: `$idAsignacion = (int)($_POST['id_asignacion'] ?? 0);`. |
-| `27` | `        $nombreGrupo  = trim($_POST['nombre_grupo']   ?? '');` | Captura y sanitiza parámetros enviados por el cliente mediante petición HTTP: `$nombreGrupo  = trim($_POST['nombre_grupo']   ?? '');`. |
-| `28` | `        $aprendices   = $_POST['aprendices']          ?? [];` | Captura y sanitiza parámetros enviados por el cliente mediante petición HTTP: `$aprendices   = $_POST['aprendices']          ?? [];`. |
-| `29` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `30` | `        if (!$idAsignacion \|\| empty($nombreGrupo)) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$idAsignacion \|\| empty($nombreGrupo)) {`. |
-| `31` | `            $_SESSION['alert'] = ['icon'=>'warning','title'=>'Datos incompl...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'warning','title'=>'Datos incompletos','text'=>'Escribe el nombre del grupo y selecciona al menos un integrante.'];`. |
-| `32` | `            header("Location: ../views/dashboard/vocero_grupos.php"); exit;` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_grupos.php"); exit;`. |
-| `33` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `34` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `35` | `        if (empty($aprendices)) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (empty($aprendices)) {`. |
-| `36` | `            $_SESSION['alert'] = ['icon'=>'warning','title'=>'Sin integrant...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'warning','title'=>'Sin integrantes','text'=>'El grupo debe tener al menos un integrante.'];`. |
-| `37` | `            header("Location: ../views/dashboard/vocero_grupos.php"); exit;` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_grupos.php"); exit;`. |
-| `38` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `39` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `40` | `        // ── Buscar el próximo turno libre de esta asignación ────────────` | Comentario de línea explicativo: `── Buscar el próximo turno libre de esta asignación ────────────`. |
-| `41` | `        $modelTurno = new Turno($this->db);` | Instrucción de ejecución en el contexto del script: `$modelTurno = new Turno($this->db);`. |
-| `42` | `        $fechaLimpieza = $modelTurno->proximaFechaLibre($idAsignacion);` | Instrucción de ejecución en el contexto del script: `$fechaLimpieza = $modelTurno->proximaFechaLibre($idAsignacion);`. |
-| `43` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `44` | `        if (!$fechaLimpieza) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$fechaLimpieza) {`. |
-| `45` | `            $_SESSION['alert'] = ['icon'=>'error','title'=>'Sin turnos disp...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'error','title'=>'Sin turnos disponibles','text'=>'Ya no hay fechas de limpieza pendientes para asignar en este período. Todos los turnos ya tienen grupo.'];`. |
-| `46` | `            header("Location: ../views/dashboard/vocero_grupos.php"); exit;` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_grupos.php"); exit;`. |
-| `47` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `48` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `49` | `        $modelGrupo = new Grupo($this->db);` | Instrucción de ejecución en el contexto del script: `$modelGrupo = new Grupo($this->db);`. |
-| `50` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `51` | `        $resultado = $modelGrupo->crear([` | Instrucción de ejecución en el contexto del script: `$resultado = $modelGrupo->crear([`. |
-| `52` | `            'id_asignacion'  => $idAsignacion,` | Instrucción de ejecución en el contexto del script: `'id_asignacion'  => $idAsignacion,`. |
-| `53` | `            'id_vocero'      => $idVocero,` | Instrucción de ejecución en el contexto del script: `'id_vocero'      => $idVocero,`. |
-| `54` | `            'nombre_grupo'   => $nombreGrupo,` | Instrucción de ejecución en el contexto del script: `'nombre_grupo'   => $nombreGrupo,`. |
-| `55` | `            'fecha_limpieza' => $fechaLimpieza,` | Instrucción de ejecución en el contexto del script: `'fecha_limpieza' => $fechaLimpieza,`. |
-| `56` | `        ], $aprendices);` | Instrucción de ejecución en el contexto del script: `], $aprendices);`. |
-| `57` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `58` | `        if ($resultado) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($resultado) {`. |
-| `59` | `            // Vincular este grupo al turno que le corresponde` | Comentario de línea explicativo: `Vincular este grupo al turno que le corresponde`. |
-| `60` | `            $modelTurno->asignarGrupoAlTurno($idAsignacion, $fechaLimpieza,...` | Instrucción de ejecución en el contexto del script: `$modelTurno->asignarGrupoAlTurno($idAsignacion, $fechaLimpieza, $resultado);`. |
-| `61` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `62` | `            $modelGrupo->registrarHistorial(` | Instrucción de ejecución en el contexto del script: `$modelGrupo->registrarHistorial(`. |
-| `63` | `                $resultado,` | Instrucción de ejecución en el contexto del script: `$resultado,`. |
-| `64` | `                "Grupo creado con " . count($aprendices) . " integrante(s)....` | Instrucción de ejecución en el contexto del script: `"Grupo creado con " . count($aprendices) . " integrante(s). Fecha asignada automáticamente: {$fechaLimpieza}.",`. |
-| `65` | `                $_SESSION['usuario']['id_usuario']` | Accede o almacena información de identidad del usuario en la sesión activa: `$_SESSION['usuario']['id_usuario']`. |
-| `66` | `            );` | Instrucción de ejecución en el contexto del script: `);`. |
-| `67` | `            $_SESSION['alert'] = [` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = [`. |
-| `68` | `                'icon'  => 'success',` | Instrucción de ejecución en el contexto del script: `'icon'  => 'success',`. |
-| `69` | `                'title' => '¡Grupo registrado!',` | Instrucción de ejecución en el contexto del script: `'title' => '¡Grupo registrado!',`. |
-| `70` | `                'text'  => 'Fecha de limpieza asignada automáticamente: ' ....` | Instrucción de ejecución en el contexto del script: `'text'  => 'Fecha de limpieza asignada automáticamente: ' . date('d/m/Y', strtotime($fechaLimpieza)) . '.',`. |
-| `71` | `            ];` | Instrucción de ejecución en el contexto del script: `];`. |
-| `72` | `        } else {` | Bloque alternativo `else`: se ejecuta si ninguna condición previa resultó verdadera. |
-| `73` | `            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'No se pudo registrar el grupo. Intenta de nuevo.'];`. |
-| `74` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `75` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `76` | `        header("Location: ../views/dashboard/vocero_grupos.php"); exit;` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_grupos.php"); exit;`. |
-| `77` | `    }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `78` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `79` | `    // ── EDITAR GRUPO ───────────────────────────────────────────────────────` | Comentario de línea explicativo: `── EDITAR GRUPO ───────────────────────────────────────────────────────`. |
-| `80` | `    public function editarGrupo(): void` | Declaración de método o función con su firma y parámetros: `public function editarGrupo(): void`. |
-| `81` | `    {` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `82` | `        $this->requireVocero();` | Instrucción de ejecución en el contexto del script: `$this->requireVocero();`. |
-| `83` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `84` | `        $idGrupo       = (int)($_POST['id_grupo']       ?? 0);` | Captura y sanitiza parámetros enviados por el cliente mediante petición HTTP: `$idGrupo       = (int)($_POST['id_grupo']       ?? 0);`. |
-| `85` | `        $nombreGrupo   = trim($_POST['nombre_grupo']    ?? '');` | Captura y sanitiza parámetros enviados por el cliente mediante petición HTTP: `$nombreGrupo   = trim($_POST['nombre_grupo']    ?? '');`. |
-| `86` | `        $fechaLimpieza = trim($_POST['fecha_limpieza']  ?? '');` | Captura y sanitiza parámetros enviados por el cliente mediante petición HTTP: `$fechaLimpieza = trim($_POST['fecha_limpieza']  ?? '');`. |
-| `87` | `        $aprendices    = $_POST['aprendices']           ?? [];` | Captura y sanitiza parámetros enviados por el cliente mediante petición HTTP: `$aprendices    = $_POST['aprendices']           ?? [];`. |
-| `88` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `89` | `        if (!$idGrupo \|\| empty($nombreGrupo) \|\| empty($fechaLimpieza) \...` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$idGrupo \|\| empty($nombreGrupo) \|\| empty($fechaLimpieza) \|\| empty($aprendices)) {`. |
-| `90` | `            $_SESSION['alert'] = ['icon'=>'warning','title'=>'Datos incompl...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'warning','title'=>'Datos incompletos','text'=>'Completa todos los campos y agrega al menos un integrante.'];`. |
-| `91` | `            header("Location: ../views/dashboard/vocero_grupos.php"); exit;` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_grupos.php"); exit;`. |
-| `92` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `93` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `94` | `        $modelGrupo = new Grupo($this->db);` | Instrucción de ejecución en el contexto del script: `$modelGrupo = new Grupo($this->db);`. |
-| `95` | `        $grupo      = $modelGrupo->obtenerPorId($idGrupo);` | Instrucción de ejecución en el contexto del script: `$grupo      = $modelGrupo->obtenerPorId($idGrupo);`. |
-| `96` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `97` | `        // Verificar que el plazo no haya vencido` | Comentario de línea explicativo: `Verificar que el plazo no haya vencido`. |
-| `98` | `        if ($grupo && strtotime($grupo['fecha_limite_evidencia']) < time()) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($grupo && strtotime($grupo['fecha_limite_evidencia']) < time()) {`. |
-| `99` | `            $_SESSION['alert'] = ['icon'=>'error','title'=>'Plazo vencido',...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'error','title'=>'Plazo vencido','text'=>'El plazo de modificación para este grupo ha expirado. Contacta al administrador.'];`. |
-| `100` | `            header("Location: ../views/dashboard/vocero_grupos.php"); exit;` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_grupos.php"); exit;`. |
-| `101` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `102` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `103` | `        $resultado = $modelGrupo->actualizar($idGrupo, [` | Instrucción de ejecución en el contexto del script: `$resultado = $modelGrupo->actualizar($idGrupo, [`. |
-| `104` | `            'nombre_grupo'   => $nombreGrupo,` | Instrucción de ejecución en el contexto del script: `'nombre_grupo'   => $nombreGrupo,`. |
-| `105` | `            'fecha_limpieza' => $fechaLimpieza,` | Instrucción de ejecución en el contexto del script: `'fecha_limpieza' => $fechaLimpieza,`. |
-| `106` | `        ], $aprendices);` | Instrucción de ejecución en el contexto del script: `], $aprendices);`. |
-| `107` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `108` | `        if ($resultado) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($resultado) {`. |
-| `109` | `            $modelGrupo->registrarHistorial(` | Instrucción de ejecución en el contexto del script: `$modelGrupo->registrarHistorial(`. |
-| `110` | `                $idGrupo,` | Instrucción de ejecución en el contexto del script: `$idGrupo,`. |
-| `111` | `                "Grupo editado: nombre='{$nombreGrupo}', integrantes actual...` | Instrucción de ejecución en el contexto del script: `"Grupo editado: nombre='{$nombreGrupo}', integrantes actualizados.",`. |
-| `112` | `                $_SESSION['usuario']['id_usuario']` | Accede o almacena información de identidad del usuario en la sesión activa: `$_SESSION['usuario']['id_usuario']`. |
-| `113` | `            );` | Instrucción de ejecución en el contexto del script: `);`. |
-| `114` | `            $_SESSION['alert'] = ['icon'=>'success','title'=>'Grupo actuali...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'success','title'=>'Grupo actualizado','text'=>'Los cambios se guardaron correctamente.'];`. |
-| `115` | `        } else {` | Bloque alternativo `else`: se ejecuta si ninguna condición previa resultó verdadera. |
-| `116` | `            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'No se pudo actualizar el grupo.'];`. |
-| `117` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `118` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `119` | `        header("Location: ../views/dashboard/vocero_grupos.php"); exit;` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_grupos.php"); exit;`. |
-| `120` | `    }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `121` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `122` | `    // ── ELIMINAR GRUPO ─────────────────────────────────────────────────────` | Comentario de línea explicativo: `── ELIMINAR GRUPO ─────────────────────────────────────────────────────`. |
-| `123` | `    public function eliminarGrupo(): void` | Declaración de método o función con su firma y parámetros: `public function eliminarGrupo(): void`. |
-| `124` | `    {` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `125` | `        $this->requireVocero();` | Instrucción de ejecución en el contexto del script: `$this->requireVocero();`. |
-| `126` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `127` | `        $idGrupo    = (int)($_POST['id_grupo'] ?? 0);` | Captura y sanitiza parámetros enviados por el cliente mediante petición HTTP: `$idGrupo    = (int)($_POST['id_grupo'] ?? 0);`. |
-| `128` | `        $modelGrupo = new Grupo($this->db);` | Instrucción de ejecución en el contexto del script: `$modelGrupo = new Grupo($this->db);`. |
-| `129` | `        $resultado  = $modelGrupo->eliminar($idGrupo);` | Instrucción de ejecución en el contexto del script: `$resultado  = $modelGrupo->eliminar($idGrupo);`. |
-| `130` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `131` | `        if ($resultado) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($resultado) {`. |
-| `132` | `            $_SESSION['alert'] = ['icon'=>'success','title'=>'Grupo elimina...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'success','title'=>'Grupo eliminado','text'=>'El grupo fue eliminado correctamente.'];`. |
-| `133` | `        } else {` | Bloque alternativo `else`: se ejecuta si ninguna condición previa resultó verdadera. |
-| `134` | `            $_SESSION['alert'] = ['icon'=>'error','title'=>'No se puede eli...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'error','title'=>'No se puede eliminar','text'=>'Este grupo tiene evidencias registradas y no puede ser eliminado.'];`. |
-| `135` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `136` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `137` | `        header("Location: ../views/dashboard/vocero_grupos.php"); exit;` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_grupos.php"); exit;`. |
-| `138` | `    }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `139` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `140` | `    // ── SUBIR EVIDENCIA ────────────────────────────────────────────────────` | Comentario de línea explicativo: `── SUBIR EVIDENCIA ────────────────────────────────────────────────────`. |
-| `141` | `    public function subirEvidencia(): void` | Declaración de método o función con su firma y parámetros: `public function subirEvidencia(): void`. |
-| `142` | `    {` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `143` | `        $this->requireVocero();` | Instrucción de ejecución en el contexto del script: `$this->requireVocero();`. |
-| `144` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `145` | `        $idGrupo   = (int)($_POST['id_grupo'] ?? 0);` | Captura y sanitiza parámetros enviados por el cliente mediante petición HTTP: `$idGrupo   = (int)($_POST['id_grupo'] ?? 0);`. |
-| `146` | `        $idVocero  = $this->getIdVocero();` | Instrucción de ejecución en el contexto del script: `$idVocero  = $this->getIdVocero();`. |
-| `147` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `148` | `        $modelGrupo = new Grupo($this->db);` | Instrucción de ejecución en el contexto del script: `$modelGrupo = new Grupo($this->db);`. |
-| `149` | `        $grupo      = $modelGrupo->obtenerPorId($idGrupo);` | Instrucción de ejecución en el contexto del script: `$grupo      = $modelGrupo->obtenerPorId($idGrupo);`. |
-| `150` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `151` | `        if (!$grupo) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$grupo) {`. |
-| `152` | `            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'Grupo no encontrado.'];`. |
-| `153` | `            header("Location: ../views/dashboard/vocero_evidencias.php"); e...` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;`. |
-| `154` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `155` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `156` | `        // Verificar plazo` | Comentario de línea explicativo: `Verificar plazo`. |
-| `157` | `        if (strtotime($grupo['fecha_limite_evidencia']) < time()) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (strtotime($grupo['fecha_limite_evidencia']) < time()) {`. |
-| `158` | `            $_SESSION['alert'] = ['icon'=>'error','title'=>'Plazo vencido',...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'error','title'=>'Plazo vencido','text'=>'El plazo de entrega venció el ' . date('d/m/Y H:i', strtotime($grupo['fecha_limite_evidencia'])) . '. Contacta al administrador.'];`. |
-| `159` | `            header("Location: ../views/dashboard/vocero_evidencias.php"); e...` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;`. |
-| `160` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `161` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `162` | `        // Verificar archivo` | Comentario de línea explicativo: `Verificar archivo`. |
-| `163` | `        if (empty($_FILES['evidencia']['name'])) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (empty($_FILES['evidencia']['name'])) {`. |
-| `164` | `            $_SESSION['alert'] = ['icon'=>'warning','title'=>'Sin archivo',...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'warning','title'=>'Sin archivo','text'=>'Selecciona una imagen para subir.'];`. |
-| `165` | `            header("Location: ../views/dashboard/vocero_evidencias.php"); e...` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;`. |
-| `166` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `167` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `168` | `        $archivo     = $_FILES['evidencia'];` | Instrucción de ejecución en el contexto del script: `$archivo     = $_FILES['evidencia'];`. |
-| `169` | `        $extensiones = ['jpg', 'jpeg', 'png'];` | Instrucción de ejecución en el contexto del script: `$extensiones = ['jpg', 'jpeg', 'png'];`. |
-| `170` | `        $ext         = strtolower(pathinfo($archivo['name'], PATHINFO_EXTEN...` | Instrucción de ejecución en el contexto del script: `$ext         = strtolower(pathinfo($archivo['name'], PATHINFO_EXTENSION));`. |
-| `171` | `        $maxSize     = 10 * 1024 * 1024; // 10 MB` | Instrucción de ejecución en el contexto del script: `$maxSize     = 10 * 1024 * 1024; // 10 MB`. |
-| `172` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `173` | `        if (!in_array($ext, $extensiones)) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!in_array($ext, $extensiones)) {`. |
-| `174` | `            $_SESSION['alert'] = ['icon'=>'error','title'=>'Formato no perm...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'error','title'=>'Formato no permitido','text'=>'Solo se aceptan archivos JPG, JPEG o PNG.'];`. |
-| `175` | `            header("Location: ../views/dashboard/vocero_evidencias.php"); e...` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;`. |
-| `176` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `177` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `178` | `        if ($archivo['size'] > $maxSize) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($archivo['size'] > $maxSize) {`. |
-| `179` | `            $_SESSION['alert'] = ['icon'=>'error','title'=>'Archivo muy gra...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'error','title'=>'Archivo muy grande','text'=>'El archivo supera el límite de 10 MB.'];`. |
-| `180` | `            header("Location: ../views/dashboard/vocero_evidencias.php"); e...` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;`. |
-| `181` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `182` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `183` | `        $carpeta    = __DIR__ . '/../public/uploads/evidencias/';` | Instrucción de ejecución en el contexto del script: `$carpeta    = __DIR__ . '/../public/uploads/evidencias/';`. |
-| `184` | `        if (!is_dir($carpeta)) mkdir($carpeta, 0755, true);` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!is_dir($carpeta)) mkdir($carpeta, 0755, true);`. |
-| `185` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `186` | `        $nombreArchivo = 'ev_' . $idGrupo . '_' . uniqid() . '.' . $ext;` | Instrucción de ejecución en el contexto del script: `$nombreArchivo = 'ev_' . $idGrupo . '_' . uniqid() . '.' . $ext;`. |
-| `187` | `        $rutaFisica    = $carpeta . $nombreArchivo;` | Instrucción de ejecución en el contexto del script: `$rutaFisica    = $carpeta . $nombreArchivo;`. |
-| `188` | `        $rutaRelativa  = 'uploads/evidencias/' . $nombreArchivo;` | Instrucción de ejecución en el contexto del script: `$rutaRelativa  = 'uploads/evidencias/' . $nombreArchivo;`. |
-| `189` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `190` | `        if (!move_uploaded_file($archivo['tmp_name'], $rutaFisica)) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!move_uploaded_file($archivo['tmp_name'], $rutaFisica)) {`. |
-| `191` | `            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error al subir'...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'error','title'=>'Error al subir','text'=>'No se pudo guardar el archivo. Intenta de nuevo.'];`. |
-| `192` | `            header("Location: ../views/dashboard/vocero_evidencias.php"); e...` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;`. |
-| `193` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `194` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `195` | `        $modelEv = new Evidencia($this->db);` | Instrucción de ejecución en el contexto del script: `$modelEv = new Evidencia($this->db);`. |
-| `196` | `        $resultado = $modelEv->registrar([` | Instrucción de ejecución en el contexto del script: `$resultado = $modelEv->registrar([`. |
-| `197` | `            'id_grupo'       => $idGrupo,` | Instrucción de ejecución en el contexto del script: `'id_grupo'       => $idGrupo,`. |
-| `198` | `            'id_vocero'      => $idVocero,` | Instrucción de ejecución en el contexto del script: `'id_vocero'      => $idVocero,`. |
-| `199` | `            'nombre_archivo' => $nombreArchivo,` | Instrucción de ejecución en el contexto del script: `'nombre_archivo' => $nombreArchivo,`. |
-| `200` | `            'ruta_archivo'   => $rutaRelativa,` | Instrucción de ejecución en el contexto del script: `'ruta_archivo'   => $rutaRelativa,`. |
-| `201` | `        ]);` | Instrucción de ejecución en el contexto del script: `]);`. |
-| `202` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `203` | `        if ($resultado) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($resultado) {`. |
-| `204` | `            $_SESSION['alert'] = ['icon'=>'success','title'=>'¡Evidencia en...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'success','title'=>'¡Evidencia enviada!','text'=>'La evidencia fue registrada correctamente el ' . date('d/m/Y H:i') . '.'];`. |
-| `205` | `        } else {` | Bloque alternativo `else`: se ejecuta si ninguna condición previa resultó verdadera. |
-| `206` | `            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'No se pudo registrar la evidencia en el sistema.'];`. |
-| `207` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `208` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `209` | `        header("Location: ../views/dashboard/vocero_evidencias.php"); exit;` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;`. |
-| `210` | `    }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `211` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `212` | `    // ── SUBIR EVIDENCIA CON TURNO ──────────────────────────────────────────` | Comentario de línea explicativo: `── SUBIR EVIDENCIA CON TURNO ──────────────────────────────────────────`. |
-| `213` | `    public function subirEvidenciaTurno(): void` | Declaración de método o función con su firma y parámetros: `public function subirEvidenciaTurno(): void`. |
-| `214` | `    {` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `215` | `        $this->requireVocero();` | Instrucción de ejecución en el contexto del script: `$this->requireVocero();`. |
-| `216` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `217` | `        $idTurno  = (int)($_POST['id_turno'] ?? 0);` | Captura y sanitiza parámetros enviados por el cliente mediante petición HTTP: `$idTurno  = (int)($_POST['id_turno'] ?? 0);`. |
-| `218` | `        $idGrupo  = (int)($_POST['id_grupo'] ?? 0);` | Captura y sanitiza parámetros enviados por el cliente mediante petición HTTP: `$idGrupo  = (int)($_POST['id_grupo'] ?? 0);`. |
-| `219` | `        $obs      = trim($_POST['observaciones'] ?? '');` | Captura y sanitiza parámetros enviados por el cliente mediante petición HTTP: `$obs      = trim($_POST['observaciones'] ?? '');`. |
-| `220` | `        $idVocero = $this->getIdVocero();` | Instrucción de ejecución en el contexto del script: `$idVocero = $this->getIdVocero();`. |
-| `221` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `222` | `        if (!$idTurno) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$idTurno) {`. |
-| `223` | `            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'Turno no válido.'];`. |
-| `224` | `            header("Location: ../views/dashboard/vocero_subir_evidencia.php...` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;`. |
-| `225` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `226` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `227` | `        // Verificar que el turno esté abierto hoy` | Comentario de línea explicativo: `Verificar que el turno esté abierto hoy`. |
-| `228` | `        $stmtT = $this->db->prepare(` | Prepara de forma segura una sentencia SQL parametrizada contra inyección SQL: `$stmtT = $this->db->prepare(`. |
-| `229` | `            "SELECT * FROM turnos WHERE id_turno = :id AND estado IN ('Abie...` | Instrucción de ejecución en el contexto del script: `"SELECT * FROM turnos WHERE id_turno = :id AND estado IN ('Abierto','Pendiente')`. |
-| `230` | `             AND NOW() BETWEEN fecha_apertura AND fecha_cierre LIMIT 1"` | Instrucción de ejecución en el contexto del script: `AND NOW() BETWEEN fecha_apertura AND fecha_cierre LIMIT 1"`. |
-| `231` | `        );` | Instrucción de ejecución en el contexto del script: `);`. |
-| `232` | `        $stmtT->execute([':id' => $idTurno]);` | Ejecuta la sentencia SQL preparada vinculando los datos correspondientes: `$stmtT->execute([':id' => $idTurno]);`. |
-| `233` | `        $turno = $stmtT->fetch(PDO::FETCH_ASSOC);` | Recupera una única fila o registro resultante de la consulta. |
-| `234` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `235` | `        if (!$turno) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$turno) {`. |
-| `236` | `            $_SESSION['alert'] = ['icon'=>'error','title'=>'Turno cerrado',...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'error','title'=>'Turno cerrado','text'=>'El plazo para subir evidencia de hoy ha vencido o el turno no es válido.'];`. |
-| `237` | `            header("Location: ../views/dashboard/vocero_subir_evidencia.php...` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;`. |
-| `238` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `239` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `240` | `        // Verificar que no tenga ya evidencia` | Comentario de línea explicativo: `Verificar que no tenga ya evidencia`. |
-| `241` | `        $stmtE = $this->db->prepare("SELECT id_evidencia FROM evidencias WH...` | Prepara de forma segura una sentencia SQL parametrizada contra inyección SQL: `$stmtE = $this->db->prepare("SELECT id_evidencia FROM evidencias WHERE id_turno = :id LIMIT 1");`. |
-| `242` | `        $stmtE->execute([':id' => $idTurno]);` | Ejecuta la sentencia SQL preparada vinculando los datos correspondientes: `$stmtE->execute([':id' => $idTurno]);`. |
-| `243` | `        if ($stmtE->fetch()) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($stmtE->fetch()) {`. |
-| `244` | `            $_SESSION['alert'] = ['icon'=>'warning','title'=>'Ya registrada...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'warning','title'=>'Ya registrada','text'=>'Ya existe una evidencia para este turno.'];`. |
-| `245` | `            header("Location: ../views/dashboard/vocero_subir_evidencia.php...` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;`. |
-| `246` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `247` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `248` | `        // Validar archivo` | Comentario de línea explicativo: `Validar archivo`. |
-| `249` | `        if (empty($_FILES['evidencia']['name'])) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (empty($_FILES['evidencia']['name'])) {`. |
-| `250` | `            $_SESSION['alert'] = ['icon'=>'warning','title'=>'Sin archivo',...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'warning','title'=>'Sin archivo','text'=>'Selecciona una imagen.'];`. |
-| `251` | `            header("Location: ../views/dashboard/vocero_subir_evidencia.php...` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;`. |
-| `252` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `253` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `254` | `        $archivo  = $_FILES['evidencia'];` | Instrucción de ejecución en el contexto del script: `$archivo  = $_FILES['evidencia'];`. |
-| `255` | `        $ext      = strtolower(pathinfo($archivo['name'], PATHINFO_EXTENSIO...` | Instrucción de ejecución en el contexto del script: `$ext      = strtolower(pathinfo($archivo['name'], PATHINFO_EXTENSION));`. |
-| `256` | `        $maxSize  = 10 * 1024 * 1024;` | Instrucción de ejecución en el contexto del script: `$maxSize  = 10 * 1024 * 1024;`. |
-| `257` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `258` | `        if (!in_array($ext, ['jpg','jpeg','png'])) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!in_array($ext, ['jpg','jpeg','png'])) {`. |
-| `259` | `            $_SESSION['alert'] = ['icon'=>'error','title'=>'Formato no váli...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'error','title'=>'Formato no válido','text'=>'Solo JPG, JPEG o PNG.'];`. |
-| `260` | `            header("Location: ../views/dashboard/vocero_subir_evidencia.php...` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;`. |
-| `261` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `262` | `        if ($archivo['size'] > $maxSize) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($archivo['size'] > $maxSize) {`. |
-| `263` | `            $_SESSION['alert'] = ['icon'=>'error','title'=>'Archivo muy gra...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'error','title'=>'Archivo muy grande','text'=>'Máximo 10 MB.'];`. |
-| `264` | `            header("Location: ../views/dashboard/vocero_subir_evidencia.php...` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;`. |
-| `265` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `266` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `267` | `        $carpeta = __DIR__ . '/../public/uploads/evidencias/';` | Instrucción de ejecución en el contexto del script: `$carpeta = __DIR__ . '/../public/uploads/evidencias/';`. |
-| `268` | `        if (!is_dir($carpeta)) mkdir($carpeta, 0755, true);` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!is_dir($carpeta)) mkdir($carpeta, 0755, true);`. |
-| `269` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `270` | `        $nombreArchivo = 'ev_t' . $idTurno . '_' . uniqid() . '.' . $ext;` | Instrucción de ejecución en el contexto del script: `$nombreArchivo = 'ev_t' . $idTurno . '_' . uniqid() . '.' . $ext;`. |
-| `271` | `        $rutaFisica    = $carpeta . $nombreArchivo;` | Instrucción de ejecución en el contexto del script: `$rutaFisica    = $carpeta . $nombreArchivo;`. |
-| `272` | `        $rutaRelativa  = 'uploads/evidencias/' . $nombreArchivo;` | Instrucción de ejecución en el contexto del script: `$rutaRelativa  = 'uploads/evidencias/' . $nombreArchivo;`. |
-| `273` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `274` | `        if (!move_uploaded_file($archivo['tmp_name'], $rutaFisica)) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!move_uploaded_file($archivo['tmp_name'], $rutaFisica)) {`. |
-| `275` | `            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error al subir'...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'error','title'=>'Error al subir','text'=>'No se pudo guardar el archivo.'];`. |
-| `276` | `            header("Location: ../views/dashboard/vocero_subir_evidencia.php...` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;`. |
-| `277` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `278` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `279` | `        // Si no hay grupo, usar el grupo del turno` | Comentario de línea explicativo: `Si no hay grupo, usar el grupo del turno`. |
-| `280` | `        if (!$idGrupo && $turno['id_grupo']) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$idGrupo && $turno['id_grupo']) {`. |
-| `281` | `            $idGrupo = (int)$turno['id_grupo'];` | Instrucción de ejecución en el contexto del script: `$idGrupo = (int)$turno['id_grupo'];`. |
-| `282` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `283` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `284` | `        // Si aún no hay grupo, buscar cualquier grupo del vocero activo` | Comentario de línea explicativo: `Si aún no hay grupo, buscar cualquier grupo del vocero activo`. |
-| `285` | `        if (!$idGrupo) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$idGrupo) {`. |
-| `286` | `            $stmtG = $this->db->prepare(` | Prepara de forma segura una sentencia SQL parametrizada contra inyección SQL: `$stmtG = $this->db->prepare(`. |
-| `287` | `                "SELECT g.id_grupo FROM grupos g` | Instrucción de ejecución en el contexto del script: `"SELECT g.id_grupo FROM grupos g`. |
-| `288` | `                 JOIN asignaciones a ON a.id_asignacion = g.id_asignacion` | Instrucción de ejecución en el contexto del script: `JOIN asignaciones a ON a.id_asignacion = g.id_asignacion`. |
-| `289` | `                 WHERE g.id_vocero = :idv AND a.estado = 'Activa'` | Instrucción de ejecución en el contexto del script: `WHERE g.id_vocero = :idv AND a.estado = 'Activa'`. |
-| `290` | `                 ORDER BY g.fecha_creacion DESC LIMIT 1"` | Instrucción de ejecución en el contexto del script: `ORDER BY g.fecha_creacion DESC LIMIT 1"`. |
-| `291` | `            );` | Instrucción de ejecución en el contexto del script: `);`. |
-| `292` | `            $stmtG->execute([':idv' => $idVocero]);` | Ejecuta la sentencia SQL preparada vinculando los datos correspondientes: `$stmtG->execute([':idv' => $idVocero]);`. |
-| `293` | `            $rowG = $stmtG->fetch(PDO::FETCH_ASSOC);` | Recupera una única fila o registro resultante de la consulta. |
-| `294` | `            $idGrupo = $rowG ? (int)$rowG['id_grupo'] : 0;` | Instrucción de ejecución en el contexto del script: `$idGrupo = $rowG ? (int)$rowG['id_grupo'] : 0;`. |
-| `295` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `296` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `297` | `        if (!$idGrupo) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$idGrupo) {`. |
-| `298` | `            $_SESSION['alert'] = ['icon'=>'error','title'=>'Sin grupo','tex...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'error','title'=>'Sin grupo','text'=>'No hay grupo asignado para este turno. Contacta al administrador.'];`. |
-| `299` | `            header("Location: ../views/dashboard/vocero_subir_evidencia.php...` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;`. |
-| `300` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `301` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `302` | `        // Registrar evidencia con id_turno` | Comentario de línea explicativo: `Registrar evidencia con id_turno`. |
-| `303` | `        try {` | Inicia bloque de captura de excepciones `try` para ejecución segura de operaciones críticas. |
-| `304` | `            $stmt = $this->db->prepare(` | Prepara de forma segura una sentencia SQL parametrizada contra inyección SQL: `$stmt = $this->db->prepare(`. |
-| `305` | `                "INSERT INTO evidencias (id_grupo, id_vocero, id_turno, nom...` | Instrucción de ejecución en el contexto del script: `"INSERT INTO evidencias (id_grupo, id_vocero, id_turno, nombre_archivo, ruta_archivo, observaciones)`. |
-| `306` | `                 VALUES (:grupo, :vocero, :turno, :nombre, :ruta, :obs)"` | Instrucción de ejecución en el contexto del script: `VALUES (:grupo, :vocero, :turno, :nombre, :ruta, :obs)"`. |
-| `307` | `            );` | Instrucción de ejecución en el contexto del script: `);`. |
-| `308` | `            $stmt->execute([` | Ejecuta la sentencia SQL preparada vinculando los datos correspondientes: `$stmt->execute([`. |
-| `309` | `                ':grupo'  => $idGrupo,` | Instrucción de ejecución en el contexto del script: `':grupo'  => $idGrupo,`. |
-| `310` | `                ':vocero' => $idVocero,` | Instrucción de ejecución en el contexto del script: `':vocero' => $idVocero,`. |
-| `311` | `                ':turno'  => $idTurno,` | Instrucción de ejecución en el contexto del script: `':turno'  => $idTurno,`. |
-| `312` | `                ':nombre' => $nombreArchivo,` | Instrucción de ejecución en el contexto del script: `':nombre' => $nombreArchivo,`. |
-| `313` | `                ':ruta'   => $rutaRelativa,` | Instrucción de ejecución en el contexto del script: `':ruta'   => $rutaRelativa,`. |
-| `314` | `                ':obs'    => $obs ?: null,` | Instrucción de ejecución en el contexto del script: `':obs'    => $obs ?: null,`. |
-| `315` | `            ]);` | Instrucción de ejecución en el contexto del script: `]);`. |
-| `316` | `            // Marcar turno como cumplido` | Comentario de línea explicativo: `Marcar turno como cumplido`. |
-| `317` | `            (new Turno($this->db))->marcarCumplido($idTurno);` | Instrucción de ejecución en el contexto del script: `(new Turno($this->db))->marcarCumplido($idTurno);`. |
-| `318` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `319` | `            // Segunda foto (opcional)` | Comentario de línea explicativo: `Segunda foto (opcional)`. |
-| `320` | `            if (!empty($_FILES['evidencia2']['name']) && $_FILES['evidencia...` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!empty($_FILES['evidencia2']['name']) && $_FILES['evidencia2']['error'] === UPLOAD_ERR_OK) {`. |
-| `321` | `                $archivo2  = $_FILES['evidencia2'];` | Instrucción de ejecución en el contexto del script: `$archivo2  = $_FILES['evidencia2'];`. |
-| `322` | `                $ext2      = strtolower(pathinfo($archivo2['name'], PATHINF...` | Instrucción de ejecución en el contexto del script: `$ext2      = strtolower(pathinfo($archivo2['name'], PATHINFO_EXTENSION));`. |
-| `323` | `                if (in_array($ext2, ['jpg','jpeg','png']) && $archivo2['siz...` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (in_array($ext2, ['jpg','jpeg','png']) && $archivo2['size'] <= $maxSize) {`. |
-| `324` | `                    $nombreArchivo2 = 'ev_t' . $idTurno . '_2_' . uniqid() ...` | Instrucción de ejecución en el contexto del script: `$nombreArchivo2 = 'ev_t' . $idTurno . '_2_' . uniqid() . '.' . $ext2;`. |
-| `325` | `                    $rutaFisica2    = $carpeta . $nombreArchivo2;` | Instrucción de ejecución en el contexto del script: `$rutaFisica2    = $carpeta . $nombreArchivo2;`. |
-| `326` | `                    $rutaRelativa2  = 'uploads/evidencias/' . $nombreArchivo2;` | Instrucción de ejecución en el contexto del script: `$rutaRelativa2  = 'uploads/evidencias/' . $nombreArchivo2;`. |
-| `327` | `                    if (move_uploaded_file($archivo2['tmp_name'], $rutaFisi...` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (move_uploaded_file($archivo2['tmp_name'], $rutaFisica2)) {`. |
-| `328` | `                        $this->db->prepare(` | Prepara de forma segura una sentencia SQL parametrizada contra inyección SQL: `$this->db->prepare(`. |
-| `329` | `                            "INSERT INTO evidencias (id_grupo, id_vocero, i...` | Instrucción de ejecución en el contexto del script: `"INSERT INTO evidencias (id_grupo, id_vocero, id_turno, nombre_archivo, ruta_archivo, observaciones)`. |
-| `330` | `                             VALUES (:grupo, :vocero, :turno, :nombre, :rut...` | Instrucción de ejecución en el contexto del script: `VALUES (:grupo, :vocero, :turno, :nombre, :ruta, :obs)"`. |
-| `331` | `                        )->execute([` | Ejecuta la sentencia SQL preparada vinculando los datos correspondientes: `)->execute([`. |
-| `332` | `                            ':grupo'  => $idGrupo,` | Instrucción de ejecución en el contexto del script: `':grupo'  => $idGrupo,`. |
-| `333` | `                            ':vocero' => $idVocero,` | Instrucción de ejecución en el contexto del script: `':vocero' => $idVocero,`. |
-| `334` | `                            ':turno'  => $idTurno,` | Instrucción de ejecución en el contexto del script: `':turno'  => $idTurno,`. |
-| `335` | `                            ':nombre' => $nombreArchivo2,` | Instrucción de ejecución en el contexto del script: `':nombre' => $nombreArchivo2,`. |
-| `336` | `                            ':ruta'   => $rutaRelativa2,` | Instrucción de ejecución en el contexto del script: `':ruta'   => $rutaRelativa2,`. |
-| `337` | `                            ':obs'    => ($obs ? $obs . ' (foto 2)' : 'foto...` | Instrucción de ejecución en el contexto del script: `':obs'    => ($obs ? $obs . ' (foto 2)' : 'foto 2'),`. |
-| `338` | `                        ]);` | Instrucción de ejecución en el contexto del script: `]);`. |
-| `339` | `                    }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `340` | `                }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `341` | `            }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `342` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `343` | `            $_SESSION['alert'] = ['icon'=>'success','title'=>'¡Evidencia en...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'success','title'=>'¡Evidencia enviada!','text'=>'La evidencia fue registrada correctamente el ' . date('d/m/Y H:i') . '.'];`. |
-| `344` | `        } catch (Exception $e) {` | Captura y manejo de excepciones en caso de fallo durante el bloque protegido: `} catch (Exception $e) {`. |
-| `345` | `            $_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección: `$_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'No se pudo registrar la evidencia.'];`. |
-| `346` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `347` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `348` | `        header("Location: ../views/dashboard/vocero_subir_evidencia.php"); ...` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;`. |
-| `349` | `    }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `350` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `351` | `    // ── GET EVIDENCIA (JSON) ────────────────────────────────────────────...` | Comentario de línea explicativo: `── GET EVIDENCIA (JSON) ────────────────────────────────────────────────`. |
-| `352` | `    public function getEvidencia(): void` | Declaración de método o función con su firma y parámetros: `public function getEvidencia(): void`. |
-| `353` | `    {` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `354` | `        header('Content-Type: application/json');` | Instrucción de ejecución en el contexto del script: `header('Content-Type: application/json');`. |
-| `355` | `        $this->requireVocero();` | Instrucción de ejecución en el contexto del script: `$this->requireVocero();`. |
-| `356` | `        $idGrupo = (int)($_GET['id_grupo'] ?? 0);` | Captura y sanitiza parámetros enviados por el cliente mediante petición HTTP: `$idGrupo = (int)($_GET['id_grupo'] ?? 0);`. |
-| `357` | `        $modelEv = new Evidencia($this->db);` | Instrucción de ejecución en el contexto del script: `$modelEv = new Evidencia($this->db);`. |
-| `358` | `        $ev = $modelEv->obtenerPorGrupo($idGrupo);` | Instrucción de ejecución en el contexto del script: `$ev = $modelEv->obtenerPorGrupo($idGrupo);`. |
-| `359` | `        if ($ev) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($ev) {`. |
-| `360` | `            $stmt = $this->db->prepare(` | Prepara de forma segura una sentencia SQL parametrizada contra inyección SQL: `$stmt = $this->db->prepare(`. |
-| `361` | `                "SELECT m.nombre AS modulo, g.nombre_grupo AS grupo, e.fech...` | Instrucción de ejecución en el contexto del script: `"SELECT m.nombre AS modulo, g.nombre_grupo AS grupo, e.fecha_subida, e.ruta_archivo`. |
-| `362` | `                 FROM evidencias e` | Instrucción de ejecución en el contexto del script: `FROM evidencias e`. |
-| `363` | `                 JOIN grupos g ON g.id_grupo = e.id_grupo` | Instrucción de ejecución en el contexto del script: `JOIN grupos g ON g.id_grupo = e.id_grupo`. |
-| `364` | `                 JOIN asignaciones a ON a.id_asignacion = g.id_asignacion` | Instrucción de ejecución en el contexto del script: `JOIN asignaciones a ON a.id_asignacion = g.id_asignacion`. |
-| `365` | `                 JOIN modulos m ON m.id_modulo = a.id_modulo` | Instrucción de ejecución en el contexto del script: `JOIN modulos m ON m.id_modulo = a.id_modulo`. |
-| `366` | `                 WHERE e.id_evidencia = :id LIMIT 1"` | Instrucción de ejecución en el contexto del script: `WHERE e.id_evidencia = :id LIMIT 1"`. |
-| `367` | `            );` | Instrucción de ejecución en el contexto del script: `);`. |
-| `368` | `            $stmt->execute([':id' => $ev['id_evidencia']]);` | Ejecuta la sentencia SQL preparada vinculando los datos correspondientes: `$stmt->execute([':id' => $ev['id_evidencia']]);`. |
-| `369` | `            $row = $stmt->fetch(PDO::FETCH_ASSOC);` | Recupera una única fila o registro resultante de la consulta. |
-| `370` | `            echo json_encode([` | Instrucción de ejecución en el contexto del script: `echo json_encode([`. |
-| `371` | `                'ruta'   => $row['ruta_archivo'],` | Instrucción de ejecución en el contexto del script: `'ruta'   => $row['ruta_archivo'],`. |
-| `372` | `                'grupo'  => $row['grupo'],` | Instrucción de ejecución en el contexto del script: `'grupo'  => $row['grupo'],`. |
-| `373` | `                'modulo' => $row['modulo'],` | Instrucción de ejecución en el contexto del script: `'modulo' => $row['modulo'],`. |
-| `374` | `                'fecha'  => date('d/m/Y H:i', strtotime($row['fecha_subida']))` | Instrucción de ejecución en el contexto del script: `'fecha'  => date('d/m/Y H:i', strtotime($row['fecha_subida']))`. |
-| `375` | `            ]);` | Instrucción de ejecución en el contexto del script: `]);`. |
-| `376` | `        } else {` | Bloque alternativo `else`: se ejecuta si ninguna condición previa resultó verdadera. |
-| `377` | `            echo json_encode(['ruta' => null]);` | Instrucción de ejecución en el contexto del script: `echo json_encode(['ruta' => null]);`. |
-| `378` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `379` | `        exit;` | Detiene inmediatamente la ejecución del script PHP en el servidor. |
-| `380` | `    }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `381` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `382` | `    // ── HELPERS ────────────────────────────────────────────────────────────` | Comentario de línea explicativo: `── HELPERS ────────────────────────────────────────────────────────────`. |
-| `383` | `    private function requireVocero(): void` | Declaración de método o función con su firma y parámetros: `private function requireVocero(): void`. |
-| `384` | `    {` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `385` | `        if (!isset($_SESSION['usuario']) \|\| (int)$_SESSION['usuario']['ro...` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!isset($_SESSION['usuario']) \|\| (int)$_SESSION['usuario']['rol'] !== 2) {`. |
-| `386` | `            header("Location: ../views/usuarios/login.php"); exit;` | Emite cabecera HTTP de redirección en el navegador: `header("Location: ../views/usuarios/login.php"); exit;`. |
-| `387` | `        }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `388` | `    }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `389` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `390` | `    private function getIdVocero(): int` | Declaración de método o función con su firma y parámetros: `private function getIdVocero(): int`. |
-| `391` | `    {` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `392` | `        // Buscar el id_vocero del usuario en sesión` | Comentario de línea explicativo: `Buscar el id_vocero del usuario en sesión`. |
-| `393` | `        $stmt = $this->db->prepare(` | Prepara de forma segura una sentencia SQL parametrizada contra inyección SQL: `$stmt = $this->db->prepare(`. |
-| `394` | `            "SELECT id_vocero FROM voceros WHERE id_usuario = :id AND activ...` | Instrucción de ejecución en el contexto del script: `"SELECT id_vocero FROM voceros WHERE id_usuario = :id AND activo = 1 LIMIT 1"`. |
-| `395` | `        );` | Instrucción de ejecución en el contexto del script: `);`. |
-| `396` | `        $stmt->execute([':id' => $_SESSION['usuario']['id_usuario']]);` | Ejecuta la sentencia SQL preparada vinculando los datos correspondientes: `$stmt->execute([':id' => $_SESSION['usuario']['id_usuario']]);`. |
-| `397` | `        $row = $stmt->fetch(PDO::FETCH_ASSOC);` | Recupera una única fila o registro resultante de la consulta. |
-| `398` | `        return $row ? (int)$row['id_vocero'] : 0;` | Retorna el valor resultante de la expresión y culmina la ejecución de la función actual: `return $row ? (int)$row['id_vocero'] : 0;`. |
-| `399` | `    }` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `400` | `}` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `401` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `402` | `// ── Dispatcher ────────────────────────────────────────────────────────────` | Comentario de línea explicativo: `── Dispatcher ────────────────────────────────────────────────────────────`. |
-| `403` | `if (basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'])) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'])) {`. |
-| `404` | `    $controller = new VoceroController();` | Instrucción de ejecución en el contexto del script: `$controller = new VoceroController();`. |
-| `405` | `    $accion     = $_POST['accion'] ?? $_GET['accion'] ?? '';` | Captura y sanitiza parámetros enviados por el cliente mediante petición HTTP: `$accion     = $_POST['accion'] ?? $_GET['accion'] ?? '';`. |
-| `406` | *(Línea en blanco)* | Línea en blanco para organización visual y legibilidad. |
-| `407` | `    match ($accion) {` | Instrucción de ejecución en el contexto del script: `match ($accion) {`. |
-| `408` | `        'guardar_grupo'   => $controller->guardarGrupo(),` | Instrucción de ejecución en el contexto del script: `'guardar_grupo'   => $controller->guardarGrupo(),`. |
-| `409` | `        'editar_grupo'    => $controller->editarGrupo(),` | Instrucción de ejecución en el contexto del script: `'editar_grupo'    => $controller->editarGrupo(),`. |
-| `410` | `        'eliminar_grupo'  => $controller->eliminarGrupo(),` | Instrucción de ejecución en el contexto del script: `'eliminar_grupo'  => $controller->eliminarGrupo(),`. |
-| `411` | `        'subir_evidencia' => $controller->subirEvidencia(),` | Instrucción de ejecución en el contexto del script: `'subir_evidencia' => $controller->subirEvidencia(),`. |
-| `412` | `        'subir_evidencia_turno' => $controller->subirEvidenciaTurno(),` | Instrucción de ejecución en el contexto del script: `'subir_evidencia_turno' => $controller->subirEvidenciaTurno(),`. |
-| `413` | `        'get_evidencia'   => $controller->getEvidencia(),` | Instrucción de ejecución en el contexto del script: `'get_evidencia'   => $controller->getEvidencia(),`. |
-| `414` | `        default           => header("Location: ../views/dashboard/vocero_da...` | Emite cabecera HTTP de redirección en el navegador: `default           => header("Location: ../views/dashboard/vocero_dashboard.php"),`. |
-| `415` | `    };` | Instrucción de ejecución en el contexto del script: `};`. |
-| `416` | `}` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
-| `417` | `?>` | Cierre de la etiqueta PHP para alternar a salida HTML o fin del archivo. |
+| `12` | ``{`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `13` | `private PDO $db;` | Definición de propiedad de clase para el estado interno del componente: `private PDO $db;`. |
+| `14` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `15` | `public function __construct()` | Declaración de método o función con su firma y parámetros: `public function __construct()`. |
+| `16` | ``{`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `17` | `$this->db = (new Database())->conectar();` | Instrucción de ejecución en el contexto del script: `$this->db = (new Database())->conectar();`. |
+| `18` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `19` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `20` | `// ── GUARDAR GRUPO ──────────────────────────────────────────────────────` | Comentario explicativo en el código: `── GUARDAR GRUPO ──────────────────────────────────────────────────────`. |
+| `21` | `public function guardarGrupo(): void` | Declaración de método o función con su firma y parámetros: `public function guardarGrupo(): void`. |
+| `22` | ``{`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `23` | `$this->requireVocero();` | Instrucción de ejecución en el contexto del script: `$this->requireVocero();`. |
+| `24` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `25` | `$idVocero     = $this->getIdVocero();` | Instrucción de ejecución en el contexto del script: `$idVocero     = $this->getIdVocero();`. |
+| `26` | `$idAsignacion = (int)($_POST['id_asignacion'] ?? 0);` | Instrucción de ejecución en el contexto del script: `$idAsignacion = (int)($_POST['id_asignacion'] ?? 0);`. |
+| `27` | `$aprendices   = $_POST['aprendices'] ?? [];` | Instrucción de ejecución en el contexto del script: `$aprendices   = $_POST['aprendices'] ?? [];`. |
+| `28` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `29` | `if (!$idAsignacion) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$idAsignacion) {`. |
+| `30` | `$_SESSION['alert'] = ['icon'=>'warning','title'=>'Sin módulo asignado','...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `31` | `header("Location: ../views/dashboard/vocero_grupos.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_grupos.php"); exit;`. |
+| `32` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `33` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `34` | `if (empty($aprendices)) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (empty($aprendices)) {`. |
+| `35` | `$_SESSION['alert'] = ['icon'=>'warning','title'=>'Sin integrantes','text...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `36` | `header("Location: ../views/dashboard/vocero_grupos.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_grupos.php"); exit;`. |
+| `37` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `38` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `39` | `// Obtener id_ficha de la asignación` | Comentario explicativo en el código: `Obtener id_ficha de la asignación`. |
+| `40` | `$stmtA = $this->db->prepare("SELECT id_ficha FROM asignaciones WHERE id_...` | Prepara de forma segura una sentencia SQL parametrizada contra inyección SQL: `$stmtA = $this->db->prepare("SELECT id_ficha FROM asignaciones WHERE id_...`. |
+| `41` | `$stmtA->execute([':id' => $idAsignacion]);` | Ejecuta la sentencia SQL preparada vinculando los parámetros correspondientes: `$stmtA->execute([':id' => $idAsignacion]);`. |
+| `42` | `$idFicha = (int)($stmtA->fetchColumn() ?: 0);` | Recupera el valor escalar de la primera columna del resultado de la consulta. |
+| `43` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `44` | `$modelGrupo = new Grupo($this->db);` | Instrucción de ejecución en el contexto del script: `$modelGrupo = new Grupo($this->db);`. |
+| `45` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `46` | `// Validar que ningún aprendiz ya esté en otro grupo de esta ficha` | Comentario explicativo en el código: `Validar que ningún aprendiz ya esté en otro grupo de esta ficha`. |
+| `47` | `$ocupados = $modelGrupo->aprendicesOcupadosEnFicha($idFicha);` | Instrucción de ejecución en el contexto del script: `$ocupados = $modelGrupo->aprendicesOcupadosEnFicha($idFicha);`. |
+| `48` | `$repetidos = array_intersect(array_map('intval', $aprendices), $ocupados);` | Instrucción de ejecución en el contexto del script: `$repetidos = array_intersect(array_map('intval', $aprendices), $ocupados);`. |
+| `49` | `if (!empty($repetidos)) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!empty($repetidos)) {`. |
+| `50` | `$_SESSION['alert'] = ['icon'=>'error','title'=>'Aprendiz ya asignado','t...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `51` | `header("Location: ../views/dashboard/vocero_grupos.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_grupos.php"); exit;`. |
+| `52` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `53` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `54` | `// Nombre automático` | Comentario explicativo en el código: `Nombre automático`. |
+| `55` | `$nombreGrupo = $modelGrupo->proximoNombreGrupo($idVocero);` | Instrucción de ejecución en el contexto del script: `$nombreGrupo = $modelGrupo->proximoNombreGrupo($idVocero);`. |
+| `56` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `57` | `// Próximo turno libre` | Comentario explicativo en el código: `Próximo turno libre`. |
+| `58` | `$modelTurno    = new Turno($this->db);` | Instrucción de ejecución en el contexto del script: `$modelTurno    = new Turno($this->db);`. |
+| `59` | `$fechaLimpieza = $modelTurno->proximaFechaLibre($idAsignacion);` | Instrucción de ejecución en el contexto del script: `$fechaLimpieza = $modelTurno->proximaFechaLibre($idAsignacion);`. |
+| `60` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `61` | `if (!$fechaLimpieza) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$fechaLimpieza) {`. |
+| `62` | `$_SESSION['alert'] = ['icon'=>'error','title'=>'Sin turnos disponibles',...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `63` | `header("Location: ../views/dashboard/vocero_grupos.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_grupos.php"); exit;`. |
+| `64` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `65` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `66` | `$resultado = $modelGrupo->crear([` | Instrucción de ejecución en el contexto del script: `$resultado = $modelGrupo->crear([`. |
+| `67` | `'id_asignacion'  => $idAsignacion,` | Instrucción de ejecución en el contexto del script: `'id_asignacion'  => $idAsignacion,`. |
+| `68` | `'id_vocero'      => $idVocero,` | Instrucción de ejecución en el contexto del script: `'id_vocero'      => $idVocero,`. |
+| `69` | `'nombre_grupo'   => $nombreGrupo,` | Instrucción de ejecución en el contexto del script: `'nombre_grupo'   => $nombreGrupo,`. |
+| `70` | `'fecha_limpieza' => $fechaLimpieza,` | Instrucción de ejecución en el contexto del script: `'fecha_limpieza' => $fechaLimpieza,`. |
+| `71` | `], $aprendices);` | Instrucción de ejecución en el contexto del script: `], $aprendices);`. |
+| `72` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `73` | `if ($resultado) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($resultado) {`. |
+| `74` | `$modelTurno->asignarGrupoAlTurno($idAsignacion, $fechaLimpieza, $resulta...` | Instrucción de ejecución en el contexto del script: `$modelTurno->asignarGrupoAlTurno($idAsignacion, $fechaLimpieza, $resulta...`. |
+| `75` | `$modelGrupo->registrarHistorial(` | Instrucción de ejecución en el contexto del script: `$modelGrupo->registrarHistorial(`. |
+| `76` | `$resultado,` | Instrucción de ejecución en el contexto del script: `$resultado,`. |
+| `77` | `"Grupo '{$nombreGrupo}' creado con " . count($aprendices) . " integrante...` | Instrucción de ejecución en el contexto del script: `"Grupo '{$nombreGrupo}' creado con " . count($aprendices) . " integrante...`. |
+| `78` | `$_SESSION['usuario']['id_usuario']` | Instrucción de ejecución en el contexto del script: `$_SESSION['usuario']['id_usuario']`. |
+| `79` | ``);`` | Cierre de estructura de arreglo o invocación de función. |
+| `80` | `$_SESSION['alert'] = [` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `81` | `'icon'  => 'success',` | Instrucción de ejecución en el contexto del script: `'icon'  => 'success',`. |
+| `82` | `'title' => '¡Grupo registrado!',` | Instrucción de ejecución en el contexto del script: `'title' => '¡Grupo registrado!',`. |
+| `83` | `'text'  => "{$nombreGrupo} · Fecha de limpieza: " . date('d/m/Y', strtot...` | Instrucción de ejecución en el contexto del script: `'text'  => "{$nombreGrupo} · Fecha de limpieza: " . date('d/m/Y', strtot...`. |
+| `84` | ``];`` | Cierre de estructura de arreglo o invocación de función. |
+| `85` | `} else {` | Instrucción de ejecución en el contexto del script: `} else {`. |
+| `86` | `$_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'No se pu...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `87` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `88` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `89` | `header("Location: ../views/dashboard/vocero_grupos.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_grupos.php"); exit;`. |
+| `90` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `91` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `92` | `// ── EDITAR GRUPO ───────────────────────────────────────────────────────` | Comentario explicativo en el código: `── EDITAR GRUPO ───────────────────────────────────────────────────────`. |
+| `93` | `public function editarGrupo(): void` | Declaración de método o función con su firma y parámetros: `public function editarGrupo(): void`. |
+| `94` | ``{`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `95` | `$this->requireVocero();` | Instrucción de ejecución en el contexto del script: `$this->requireVocero();`. |
+| `96` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `97` | `$idGrupo    = (int)($_POST['id_grupo']  ?? 0);` | Instrucción de ejecución en el contexto del script: `$idGrupo    = (int)($_POST['id_grupo']  ?? 0);`. |
+| `98` | `$aprendices = $_POST['aprendices']      ?? [];` | Instrucción de ejecución en el contexto del script: `$aprendices = $_POST['aprendices']      ?? [];`. |
+| `99` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `100` | `if (!$idGrupo \|\| empty($aprendices)) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$idGrupo \|\| empty($aprendices)) {`. |
+| `101` | `$_SESSION['alert'] = ['icon'=>'warning','title'=>'Datos incompletos','te...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `102` | `header("Location: ../views/dashboard/vocero_grupos.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_grupos.php"); exit;`. |
+| `103` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `104` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `105` | `$modelGrupo = new Grupo($this->db);` | Instrucción de ejecución en el contexto del script: `$modelGrupo = new Grupo($this->db);`. |
+| `106` | `$grupo      = $modelGrupo->obtenerPorId($idGrupo);` | Instrucción de ejecución en el contexto del script: `$grupo      = $modelGrupo->obtenerPorId($idGrupo);`. |
+| `107` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `108` | `if (!$grupo) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$grupo) {`. |
+| `109` | `$_SESSION['alert'] = ['icon'=>'error','title'=>'No encontrado','text'=>'...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `110` | `header("Location: ../views/dashboard/vocero_grupos.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_grupos.php"); exit;`. |
+| `111` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `112` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `113` | `// Validar que ningún aprendiz nuevo ya esté en otro grupo de la ficha` | Comentario explicativo en el código: `Validar que ningún aprendiz nuevo ya esté en otro grupo de la ficha`. |
+| `114` | `$idFicha = (int)($grupo['id_ficha'] ?? 0);` | Instrucción de ejecución en el contexto del script: `$idFicha = (int)($grupo['id_ficha'] ?? 0);`. |
+| `115` | `if ($idFicha) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($idFicha) {`. |
+| `116` | `$ocupados  = $modelGrupo->aprendicesOcupadosEnFicha($idFicha, $idGrupo);` | Instrucción de ejecución en el contexto del script: `$ocupados  = $modelGrupo->aprendicesOcupadosEnFicha($idFicha, $idGrupo);`. |
+| `117` | `$repetidos = array_intersect(array_map('intval', $aprendices), $ocupados);` | Instrucción de ejecución en el contexto del script: `$repetidos = array_intersect(array_map('intval', $aprendices), $ocupados);`. |
+| `118` | `if (!empty($repetidos)) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!empty($repetidos)) {`. |
+| `119` | `$_SESSION['alert'] = ['icon'=>'error','title'=>'Aprendiz ya asignado','t...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `120` | `header("Location: ../views/dashboard/vocero_grupos.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_grupos.php"); exit;`. |
+| `121` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `122` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `123` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `124` | `// Si la fecha ya pasó, reasignar automáticamente al próximo turno libre` | Comentario explicativo en el código: `Si la fecha ya pasó, reasignar automáticamente al próximo turno libre`. |
+| `125` | `$fechaLimpieza = $grupo['fecha_limpieza'];` | Instrucción de ejecución en el contexto del script: `$fechaLimpieza = $grupo['fecha_limpieza'];`. |
+| `126` | `if (strtotime($fechaLimpieza) < strtotime('today')) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (strtotime($fechaLimpieza) < strtotime('today')) {`. |
+| `127` | `$modelTurno    = new Turno($this->db);` | Instrucción de ejecución en el contexto del script: `$modelTurno    = new Turno($this->db);`. |
+| `128` | `$idAsignacion  = (int)$grupo['id_asignacion'];` | Instrucción de ejecución en el contexto del script: `$idAsignacion  = (int)$grupo['id_asignacion'];`. |
+| `129` | `$nuevaFecha    = $modelTurno->proximaFechaLibre($idAsignacion);` | Instrucción de ejecución en el contexto del script: `$nuevaFecha    = $modelTurno->proximaFechaLibre($idAsignacion);`. |
+| `130` | `if ($nuevaFecha) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($nuevaFecha) {`. |
+| `131` | `$fechaLimpieza = $nuevaFecha;` | Instrucción de ejecución en el contexto del script: `$fechaLimpieza = $nuevaFecha;`. |
+| `132` | `// Vincular turno al grupo` | Comentario explicativo en el código: `Vincular turno al grupo`. |
+| `133` | `$modelTurno->asignarGrupoAlTurno($idAsignacion, $nuevaFecha, $idGrupo);` | Instrucción de ejecución en el contexto del script: `$modelTurno->asignarGrupoAlTurno($idAsignacion, $nuevaFecha, $idGrupo);`. |
+| `134` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `135` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `136` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `137` | `$resultado = $modelGrupo->actualizar($idGrupo, [` | Instrucción de ejecución en el contexto del script: `$resultado = $modelGrupo->actualizar($idGrupo, [`. |
+| `138` | `'nombre_grupo'   => $grupo['nombre_grupo'],` | Instrucción de ejecución en el contexto del script: `'nombre_grupo'   => $grupo['nombre_grupo'],`. |
+| `139` | `'fecha_limpieza' => $fechaLimpieza,` | Instrucción de ejecución en el contexto del script: `'fecha_limpieza' => $fechaLimpieza,`. |
+| `140` | `], $aprendices);` | Instrucción de ejecución en el contexto del script: `], $aprendices);`. |
+| `141` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `142` | `if ($resultado) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($resultado) {`. |
+| `143` | `$modelGrupo->registrarHistorial(` | Instrucción de ejecución en el contexto del script: `$modelGrupo->registrarHistorial(`. |
+| `144` | `$idGrupo,` | Instrucción de ejecución en el contexto del script: `$idGrupo,`. |
+| `145` | `"Grupo editado: integrantes actualizados. Fecha: {$fechaLimpieza}.",` | Instrucción de ejecución en el contexto del script: `"Grupo editado: integrantes actualizados. Fecha: {$fechaLimpieza}.",`. |
+| `146` | `$_SESSION['usuario']['id_usuario']` | Instrucción de ejecución en el contexto del script: `$_SESSION['usuario']['id_usuario']`. |
+| `147` | ``);`` | Cierre de estructura de arreglo o invocación de función. |
+| `148` | `$_SESSION['alert'] = [` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `149` | `'icon'  => 'success',` | Instrucción de ejecución en el contexto del script: `'icon'  => 'success',`. |
+| `150` | `'title' => 'Grupo actualizado',` | Instrucción de ejecución en el contexto del script: `'title' => 'Grupo actualizado',`. |
+| `151` | `'text'  => 'Integrantes actualizados. Próxima limpieza: ' . date('d/m/Y'...` | Instrucción de ejecución en el contexto del script: `'text'  => 'Integrantes actualizados. Próxima limpieza: ' . date('d/m/Y'...`. |
+| `152` | ``];`` | Cierre de estructura de arreglo o invocación de función. |
+| `153` | `} else {` | Instrucción de ejecución en el contexto del script: `} else {`. |
+| `154` | `$_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'No se pu...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `155` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `156` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `157` | `header("Location: ../views/dashboard/vocero_grupos.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_grupos.php"); exit;`. |
+| `158` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `159` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `160` | `// ── ELIMINAR GRUPO ─────────────────────────────────────────────────────` | Comentario explicativo en el código: `── ELIMINAR GRUPO ─────────────────────────────────────────────────────`. |
+| `161` | `public function eliminarGrupo(): void` | Declaración de método o función con su firma y parámetros: `public function eliminarGrupo(): void`. |
+| `162` | ``{`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `163` | `$this->requireVocero();` | Instrucción de ejecución en el contexto del script: `$this->requireVocero();`. |
+| `164` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `165` | `$idGrupo    = (int)($_POST['id_grupo'] ?? 0);` | Instrucción de ejecución en el contexto del script: `$idGrupo    = (int)($_POST['id_grupo'] ?? 0);`. |
+| `166` | `$idVocero   = $this->getIdVocero();` | Instrucción de ejecución en el contexto del script: `$idVocero   = $this->getIdVocero();`. |
+| `167` | `$modelGrupo = new Grupo($this->db);` | Instrucción de ejecución en el contexto del script: `$modelGrupo = new Grupo($this->db);`. |
+| `168` | `$resultado  = $modelGrupo->eliminar($idGrupo);` | Instrucción de ejecución en el contexto del script: `$resultado  = $modelGrupo->eliminar($idGrupo);`. |
+| `169` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `170` | `if ($resultado) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($resultado) {`. |
+| `171` | `// Renumerar los grupos restantes para que queden consecutivos` | Comentario explicativo en el código: `Renumerar los grupos restantes para que queden consecutivos`. |
+| `172` | `$modelGrupo->renumerarGrupos($idVocero);` | Instrucción de ejecución en el contexto del script: `$modelGrupo->renumerarGrupos($idVocero);`. |
+| `173` | `$_SESSION['alert'] = ['icon'=>'success','title'=>'Grupo eliminado','text...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `174` | `} else {` | Instrucción de ejecución en el contexto del script: `} else {`. |
+| `175` | `$_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'No se pu...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `176` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `177` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `178` | `header("Location: ../views/dashboard/vocero_grupos.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_grupos.php"); exit;`. |
+| `179` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `180` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `181` | `// ── SUBIR EVIDENCIA (flujo antiguo por grupo — mantiene compatibilidad...` | Comentario explicativo en el código: `── SUBIR EVIDENCIA (flujo antiguo por grupo — mantiene compatibilidad) ──`. |
+| `182` | `public function subirEvidencia(): void` | Declaración de método o función con su firma y parámetros: `public function subirEvidencia(): void`. |
+| `183` | ``{`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `184` | `$this->requireVocero();` | Instrucción de ejecución en el contexto del script: `$this->requireVocero();`. |
+| `185` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `186` | `$idGrupo  = (int)($_POST['id_grupo'] ?? 0);` | Instrucción de ejecución en el contexto del script: `$idGrupo  = (int)($_POST['id_grupo'] ?? 0);`. |
+| `187` | `$idVocero = $this->getIdVocero();` | Instrucción de ejecución en el contexto del script: `$idVocero = $this->getIdVocero();`. |
+| `188` | `$modelEv  = new Evidencia($this->db);` | Instrucción de ejecución en el contexto del script: `$modelEv  = new Evidencia($this->db);`. |
+| `189` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `190` | `$modelGrupo = new Grupo($this->db);` | Instrucción de ejecución en el contexto del script: `$modelGrupo = new Grupo($this->db);`. |
+| `191` | `$grupo      = $modelGrupo->obtenerPorId($idGrupo);` | Instrucción de ejecución en el contexto del script: `$grupo      = $modelGrupo->obtenerPorId($idGrupo);`. |
+| `192` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `193` | `if (!$grupo) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$grupo) {`. |
+| `194` | `$_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'Grupo no...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `195` | `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;`. |
+| `196` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `197` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `198` | `// Verificar plazo` | Comentario explicativo en el código: `Verificar plazo`. |
+| `199` | `if (strtotime($grupo['fecha_limite_evidencia']) < time()) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (strtotime($grupo['fecha_limite_evidencia']) < time()) {`. |
+| `200` | `$_SESSION['alert'] = ['icon'=>'error','title'=>'Plazo vencido','text'=>'...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `201` | `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;`. |
+| `202` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `203` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `204` | `// Verificar que ya no tenga el par completo` | Comentario explicativo en el código: `Verificar que ya no tenga el par completo`. |
+| `205` | `if ($modelEv->grupoCompleto($idGrupo)) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($modelEv->grupoCompleto($idGrupo)) {`. |
+| `206` | `$_SESSION['alert'] = ['icon'=>'warning','title'=>'Ya completado','text'=...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `207` | `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;`. |
+| `208` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `209` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `210` | `$carpeta = __DIR__ . '/../public/uploads/evidencias/';` | Instrucción de ejecución en el contexto del script: `$carpeta = __DIR__ . '/../public/uploads/evidencias/';`. |
+| `211` | `if (!is_dir($carpeta)) mkdir($carpeta, 0755, true);` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!is_dir($carpeta)) mkdir($carpeta, 0755, true);`. |
+| `212` | `$maxSize = 10 * 1024 * 1024;` | Instrucción de ejecución en el contexto del script: `$maxSize = 10 * 1024 * 1024;`. |
+| `213` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `214` | `// ── Helper para validar y mover un archivo ──────────────────────────` | Comentario explicativo en el código: `── Helper para validar y mover un archivo ──────────────────────────`. |
+| `215` | `$procesarArchivo = function(array $file, string $prefijo) use ($carpeta,...` | Instrucción de ejecución en el contexto del script: `$procesarArchivo = function(array $file, string $prefijo) use ($carpeta,...`. |
+| `216` | `if (empty($file['name']) \|\| $file['error'] !== UPLOAD_ERR_OK) return f...` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (empty($file['name']) \|\| $file['error'] !== UPLOAD_ERR_OK) return f...`. |
+| `217` | `$ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));` | Instrucción de ejecución en el contexto del script: `$ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));`. |
+| `218` | `if (!in_array($ext, ['jpg','jpeg','png'])) return false;` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!in_array($ext, ['jpg','jpeg','png'])) return false;`. |
+| `219` | `if ($file['size'] > $maxSize) return false;` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($file['size'] > $maxSize) return false;`. |
+| `220` | `$nombre   = $prefijo . '_' . uniqid() . '.' . $ext;` | Instrucción de ejecución en el contexto del script: `$nombre   = $prefijo . '_' . uniqid() . '.' . $ext;`. |
+| `221` | `$fisica   = $carpeta . $nombre;` | Instrucción de ejecución en el contexto del script: `$fisica   = $carpeta . $nombre;`. |
+| `222` | `$relativa = 'uploads/evidencias/' . $nombre;` | Instrucción de ejecución en el contexto del script: `$relativa = 'uploads/evidencias/' . $nombre;`. |
+| `223` | `return move_uploaded_file($file['tmp_name'], $fisica)` | Instrucción de retorno que finaliza la ejecución entregando el resultado: `return move_uploaded_file($file['tmp_name'], $fisica)`. |
+| `224` | `? ['nombre' => $nombre, 'ruta' => $relativa]` | Instrucción de ejecución en el contexto del script: `? ['nombre' => $nombre, 'ruta' => $relativa]`. |
+| `225` | `: false;` | Instrucción de ejecución en el contexto del script: `: false;`. |
+| `226` | `};` | Instrucción de ejecución en el contexto del script: `};`. |
+| `227` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `228` | `$fAntes   = $_FILES['foto_antes']   ?? [];` | Instrucción de ejecución en el contexto del script: `$fAntes   = $_FILES['foto_antes']   ?? [];`. |
+| `229` | `$fDespues = $_FILES['foto_despues'] ?? [];` | Instrucción de ejecución en el contexto del script: `$fDespues = $_FILES['foto_despues'] ?? [];`. |
+| `230` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `231` | `if (empty($fAntes['name']) \|\| empty($fDespues['name'])) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (empty($fAntes['name']) \|\| empty($fDespues['name'])) {`. |
+| `232` | `$_SESSION['alert'] = ['icon'=>'warning','title'=>'Fotos incompletas','te...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `233` | `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;`. |
+| `234` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `235` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `236` | `$antes   = $procesarArchivo($fAntes,   'ev_g' . $idGrupo . '_antes');` | Instrucción de ejecución en el contexto del script: `$antes   = $procesarArchivo($fAntes,   'ev_g' . $idGrupo . '_antes');`. |
+| `237` | `$despues = $procesarArchivo($fDespues, 'ev_g' . $idGrupo . '_despues');` | Instrucción de ejecución en el contexto del script: `$despues = $procesarArchivo($fDespues, 'ev_g' . $idGrupo . '_despues');`. |
+| `238` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `239` | `if (!$antes \|\| !$despues) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$antes \|\| !$despues) {`. |
+| `240` | `$_SESSION['alert'] = ['icon'=>'error','title'=>'Error al subir','text'=>...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `241` | `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;`. |
+| `242` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `243` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `244` | `try {` | Instrucción de ejecución en el contexto del script: `try {`. |
+| `245` | `$modelEv->registrar(['id_grupo' => $idGrupo, 'id_vocero' => $idVocero,` | Instrucción de ejecución en el contexto del script: `$modelEv->registrar(['id_grupo' => $idGrupo, 'id_vocero' => $idVocero,`. |
+| `246` | `'tipo' => 'antes',   'nombre_archivo' => $antes['nombre'],   'ruta_archi...` | Instrucción de ejecución en el contexto del script: `'tipo' => 'antes',   'nombre_archivo' => $antes['nombre'],   'ruta_archi...`. |
+| `247` | `$modelEv->registrar(['id_grupo' => $idGrupo, 'id_vocero' => $idVocero,` | Instrucción de ejecución en el contexto del script: `$modelEv->registrar(['id_grupo' => $idGrupo, 'id_vocero' => $idVocero,`. |
+| `248` | `'tipo' => 'despues', 'nombre_archivo' => $despues['nombre'], 'ruta_archi...` | Instrucción de ejecución en el contexto del script: `'tipo' => 'despues', 'nombre_archivo' => $despues['nombre'], 'ruta_archi...`. |
+| `249` | `$_SESSION['alert'] = ['icon'=>'success','title'=>'¡Evidencias enviadas!'...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `250` | `} catch (Exception $e) {` | Instrucción de ejecución en el contexto del script: `} catch (Exception $e) {`. |
+| `251` | `$_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'No se pu...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `252` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `253` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `254` | `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_evidencias.php"); exit;`. |
+| `255` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `256` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `257` | `// ── SUBIR EVIDENCIA CON TURNO (2 fotos obligatorias: antes + después) ───` | Comentario explicativo en el código: `── SUBIR EVIDENCIA CON TURNO (2 fotos obligatorias: antes + después) ───`. |
+| `258` | `public function subirEvidenciaTurno(): void` | Declaración de método o función con su firma y parámetros: `public function subirEvidenciaTurno(): void`. |
+| `259` | ``{`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `260` | `$this->requireVocero();` | Instrucción de ejecución en el contexto del script: `$this->requireVocero();`. |
+| `261` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `262` | `$idTurno  = (int)($_POST['id_turno'] ?? 0);` | Instrucción de ejecución en el contexto del script: `$idTurno  = (int)($_POST['id_turno'] ?? 0);`. |
+| `263` | `$idGrupo  = (int)($_POST['id_grupo'] ?? 0);` | Instrucción de ejecución en el contexto del script: `$idGrupo  = (int)($_POST['id_grupo'] ?? 0);`. |
+| `264` | `$obs      = trim($_POST['observaciones'] ?? '');` | Instrucción de ejecución en el contexto del script: `$obs      = trim($_POST['observaciones'] ?? '');`. |
+| `265` | `$idVocero = $this->getIdVocero();` | Instrucción de ejecución en el contexto del script: `$idVocero = $this->getIdVocero();`. |
+| `266` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `267` | `if (!$idTurno) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$idTurno) {`. |
+| `268` | `$_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'Turno no...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `269` | `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;`. |
+| `270` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `271` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `272` | `// Verificar que el turno esté abierto hoy` | Comentario explicativo en el código: `Verificar que el turno esté abierto hoy`. |
+| `273` | `$stmtT = $this->db->prepare(` | Prepara de forma segura una sentencia SQL parametrizada contra inyección SQL: `$stmtT = $this->db->prepare(`. |
+| `274` | `"SELECT * FROM turnos WHERE id_turno = :id AND estado IN ('Abierto','Pen...` | Instrucción de ejecución en el contexto del script: `"SELECT * FROM turnos WHERE id_turno = :id AND estado IN ('Abierto','Pen...`. |
+| `275` | `AND NOW() BETWEEN fecha_apertura AND fecha_cierre LIMIT 1"` | Instrucción de ejecución en el contexto del script: `AND NOW() BETWEEN fecha_apertura AND fecha_cierre LIMIT 1"`. |
+| `276` | ``);`` | Cierre de estructura de arreglo o invocación de función. |
+| `277` | `$stmtT->execute([':id' => $idTurno]);` | Ejecuta la sentencia SQL preparada vinculando los parámetros correspondientes: `$stmtT->execute([':id' => $idTurno]);`. |
+| `278` | `$turno = $stmtT->fetch(PDO::FETCH_ASSOC);` | Recupera una única fila o registro resultante de la consulta. |
+| `279` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `280` | `if (!$turno) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$turno) {`. |
+| `281` | `$_SESSION['alert'] = ['icon'=>'error','title'=>'Turno cerrado','text'=>'...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `282` | `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;`. |
+| `283` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `284` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `285` | `// Verificar que el turno no tenga ya el par completo` | Comentario explicativo en el código: `Verificar que el turno no tenga ya el par completo`. |
+| `286` | `$modelEv = new Evidencia($this->db);` | Instrucción de ejecución en el contexto del script: `$modelEv = new Evidencia($this->db);`. |
+| `287` | `if ($modelEv->turnoCompleto($idTurno)) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($modelEv->turnoCompleto($idTurno)) {`. |
+| `288` | `$_SESSION['alert'] = ['icon'=>'warning','title'=>'Ya completado','text'=...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `289` | `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;`. |
+| `290` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `291` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `292` | `// ── Validar que ambas fotos estén presentes ─────────────────────────` | Comentario explicativo en el código: `── Validar que ambas fotos estén presentes ─────────────────────────`. |
+| `293` | `$fAntes   = $_FILES['foto_antes']   ?? [];` | Instrucción de ejecución en el contexto del script: `$fAntes   = $_FILES['foto_antes']   ?? [];`. |
+| `294` | `$fDespues = $_FILES['foto_despues'] ?? [];` | Instrucción de ejecución en el contexto del script: `$fDespues = $_FILES['foto_despues'] ?? [];`. |
+| `295` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `296` | `if (empty($fAntes['name'])   \|\| ($fAntes['error']   ?? UPLOAD_ERR_NO_F...` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (empty($fAntes['name'])   \|\| ($fAntes['error']   ?? UPLOAD_ERR_NO_F...`. |
+| `297` | `empty($fDespues['name']) \|\| ($fDespues['error'] ?? UPLOAD_ERR_NO_FILE)...` | Instrucción de ejecución en el contexto del script: `empty($fDespues['name']) \|\| ($fDespues['error'] ?? UPLOAD_ERR_NO_FILE)...`. |
+| `298` | `$_SESSION['alert'] = ['icon'=>'warning','title'=>'Fotos incompletas','te...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `299` | `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;`. |
+| `300` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `301` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `302` | `$maxSize = 10 * 1024 * 1024;` | Instrucción de ejecución en el contexto del script: `$maxSize = 10 * 1024 * 1024;`. |
+| `303` | `$extsOk  = ['jpg','jpeg','png'];` | Instrucción de ejecución en el contexto del script: `$extsOk  = ['jpg','jpeg','png'];`. |
+| `304` | `$carpeta = __DIR__ . '/../public/uploads/evidencias/';` | Instrucción de ejecución en el contexto del script: `$carpeta = __DIR__ . '/../public/uploads/evidencias/';`. |
+| `305` | `if (!is_dir($carpeta)) mkdir($carpeta, 0755, true);` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!is_dir($carpeta)) mkdir($carpeta, 0755, true);`. |
+| `306` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `307` | `// ── Helper para validar y mover un archivo ──────────────────────────` | Comentario explicativo en el código: `── Helper para validar y mover un archivo ──────────────────────────`. |
+| `308` | `$procesarArchivo = function(array $file, string $prefijo) use ($carpeta,...` | Instrucción de ejecución en el contexto del script: `$procesarArchivo = function(array $file, string $prefijo) use ($carpeta,...`. |
+| `309` | `$ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));` | Instrucción de ejecución en el contexto del script: `$ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));`. |
+| `310` | `if (!in_array($ext, $extsOk)) return false;` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!in_array($ext, $extsOk)) return false;`. |
+| `311` | `if ($file['size'] > $maxSize)  return false;` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($file['size'] > $maxSize)  return false;`. |
+| `312` | `$nombre   = 'ev_t' . $idTurno . '_' . $prefijo . '_' . uniqid() . '.' . ...` | Instrucción de ejecución en el contexto del script: `$nombre   = 'ev_t' . $idTurno . '_' . $prefijo . '_' . uniqid() . '.' . ...`. |
+| `313` | `$fisica   = $carpeta . $nombre;` | Instrucción de ejecución en el contexto del script: `$fisica   = $carpeta . $nombre;`. |
+| `314` | `$relativa = 'uploads/evidencias/' . $nombre;` | Instrucción de ejecución en el contexto del script: `$relativa = 'uploads/evidencias/' . $nombre;`. |
+| `315` | `return move_uploaded_file($file['tmp_name'], $fisica)` | Instrucción de retorno que finaliza la ejecución entregando el resultado: `return move_uploaded_file($file['tmp_name'], $fisica)`. |
+| `316` | `? ['nombre' => $nombre, 'ruta' => $relativa]` | Instrucción de ejecución en el contexto del script: `? ['nombre' => $nombre, 'ruta' => $relativa]`. |
+| `317` | `: false;` | Instrucción de ejecución en el contexto del script: `: false;`. |
+| `318` | `};` | Instrucción de ejecución en el contexto del script: `};`. |
+| `319` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `320` | `$antes   = $procesarArchivo($fAntes,   'antes');` | Instrucción de ejecución en el contexto del script: `$antes   = $procesarArchivo($fAntes,   'antes');`. |
+| `321` | `$despues = $procesarArchivo($fDespues, 'despues');` | Instrucción de ejecución en el contexto del script: `$despues = $procesarArchivo($fDespues, 'despues');`. |
+| `322` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `323` | `if (!$antes) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$antes) {`. |
+| `324` | `$_SESSION['alert'] = ['icon'=>'error','title'=>'Error en foto "Antes"','...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `325` | `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;`. |
+| `326` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `327` | `if (!$despues) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$despues) {`. |
+| `328` | `// Limpiar la foto antes ya movida` | Comentario explicativo en el código: `Limpiar la foto antes ya movida`. |
+| `329` | `@unlink(__DIR__ . '/../public/uploads/evidencias/' . $antes['nombre']);` | Instrucción de ejecución en el contexto del script: `@unlink(__DIR__ . '/../public/uploads/evidencias/' . $antes['nombre']);`. |
+| `330` | `$_SESSION['alert'] = ['icon'=>'error','title'=>'Error en foto "Después"'...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `331` | `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;`. |
+| `332` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `333` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `334` | `// ── Resolver id_grupo ───────────────────────────────────────────────` | Comentario explicativo en el código: `── Resolver id_grupo ───────────────────────────────────────────────`. |
+| `335` | `if (!$idGrupo && $turno['id_grupo']) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$idGrupo && $turno['id_grupo']) {`. |
+| `336` | `$idGrupo = (int)$turno['id_grupo'];` | Instrucción de ejecución en el contexto del script: `$idGrupo = (int)$turno['id_grupo'];`. |
+| `337` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `338` | `if (!$idGrupo) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$idGrupo) {`. |
+| `339` | `$stmtG = $this->db->prepare(` | Prepara de forma segura una sentencia SQL parametrizada contra inyección SQL: `$stmtG = $this->db->prepare(`. |
+| `340` | `"SELECT g.id_grupo FROM grupos g` | Instrucción de ejecución en el contexto del script: `"SELECT g.id_grupo FROM grupos g`. |
+| `341` | `JOIN asignaciones a ON a.id_asignacion = g.id_asignacion` | Instrucción de ejecución en el contexto del script: `JOIN asignaciones a ON a.id_asignacion = g.id_asignacion`. |
+| `342` | `WHERE g.id_vocero = :idv AND a.estado = 'Activa'` | Instrucción de ejecución en el contexto del script: `WHERE g.id_vocero = :idv AND a.estado = 'Activa'`. |
+| `343` | `ORDER BY g.fecha_creacion DESC LIMIT 1"` | Instrucción de ejecución en el contexto del script: `ORDER BY g.fecha_creacion DESC LIMIT 1"`. |
+| `344` | ``);`` | Cierre de estructura de arreglo o invocación de función. |
+| `345` | `$stmtG->execute([':idv' => $idVocero]);` | Ejecuta la sentencia SQL preparada vinculando los parámetros correspondientes: `$stmtG->execute([':idv' => $idVocero]);`. |
+| `346` | `$rowG    = $stmtG->fetch(PDO::FETCH_ASSOC);` | Recupera una única fila o registro resultante de la consulta. |
+| `347` | `$idGrupo = $rowG ? (int)$rowG['id_grupo'] : 0;` | Instrucción de ejecución en el contexto del script: `$idGrupo = $rowG ? (int)$rowG['id_grupo'] : 0;`. |
+| `348` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `349` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `350` | `if (!$idGrupo) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$idGrupo) {`. |
+| `351` | `$_SESSION['alert'] = ['icon'=>'error','title'=>'Sin grupo','text'=>'No h...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `352` | `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;`. |
+| `353` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `354` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `355` | `// ── Registrar ambas fotos ───────────────────────────────────────────` | Comentario explicativo en el código: `── Registrar ambas fotos ───────────────────────────────────────────`. |
+| `356` | `try {` | Instrucción de ejecución en el contexto del script: `try {`. |
+| `357` | `$idEvAntes   = $modelEv->registrar([` | Instrucción de ejecución en el contexto del script: `$idEvAntes   = $modelEv->registrar([`. |
+| `358` | `'id_grupo'       => $idGrupo,` | Instrucción de ejecución en el contexto del script: `'id_grupo'       => $idGrupo,`. |
+| `359` | `'id_vocero'      => $idVocero,` | Instrucción de ejecución en el contexto del script: `'id_vocero'      => $idVocero,`. |
+| `360` | `'id_turno'       => $idTurno,` | Instrucción de ejecución en el contexto del script: `'id_turno'       => $idTurno,`. |
+| `361` | `'tipo'           => 'antes',` | Instrucción de ejecución en el contexto del script: `'tipo'           => 'antes',`. |
+| `362` | `'nombre_archivo' => $antes['nombre'],` | Instrucción de ejecución en el contexto del script: `'nombre_archivo' => $antes['nombre'],`. |
+| `363` | `'ruta_archivo'   => $antes['ruta'],` | Instrucción de ejecución en el contexto del script: `'ruta_archivo'   => $antes['ruta'],`. |
+| `364` | `'observaciones'  => $obs ?: null,` | Instrucción de ejecución en el contexto del script: `'observaciones'  => $obs ?: null,`. |
+| `365` | `]);` | Instrucción de ejecución en el contexto del script: `]);`. |
+| `366` | `$idEvDespues = $modelEv->registrar([` | Instrucción de ejecución en el contexto del script: `$idEvDespues = $modelEv->registrar([`. |
+| `367` | `'id_grupo'       => $idGrupo,` | Instrucción de ejecución en el contexto del script: `'id_grupo'       => $idGrupo,`. |
+| `368` | `'id_vocero'      => $idVocero,` | Instrucción de ejecución en el contexto del script: `'id_vocero'      => $idVocero,`. |
+| `369` | `'id_turno'       => $idTurno,` | Instrucción de ejecución en el contexto del script: `'id_turno'       => $idTurno,`. |
+| `370` | `'tipo'           => 'despues',` | Instrucción de ejecución en el contexto del script: `'tipo'           => 'despues',`. |
+| `371` | `'nombre_archivo' => $despues['nombre'],` | Instrucción de ejecución en el contexto del script: `'nombre_archivo' => $despues['nombre'],`. |
+| `372` | `'ruta_archivo'   => $despues['ruta'],` | Instrucción de ejecución en el contexto del script: `'ruta_archivo'   => $despues['ruta'],`. |
+| `373` | `'observaciones'  => $obs ?: null,` | Instrucción de ejecución en el contexto del script: `'observaciones'  => $obs ?: null,`. |
+| `374` | `]);` | Instrucción de ejecución en el contexto del script: `]);`. |
+| `375` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `376` | `// ── Snapshot de integrantes del grupo en este momento ───────────` | Comentario explicativo en el código: `── Snapshot de integrantes del grupo en este momento ───────────`. |
+| `377` | `if ($idEvAntes \|\| $idEvDespues) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($idEvAntes \|\| $idEvDespues) {`. |
+| `378` | `$stmtInts = $this->db->prepare(` | Prepara de forma segura una sentencia SQL parametrizada contra inyección SQL: `$stmtInts = $this->db->prepare(`. |
+| `379` | `"SELECT ap.id_aprendiz, ap.nombres, ap.apellidos, ap.documento` | Instrucción de ejecución en el contexto del script: `"SELECT ap.id_aprendiz, ap.nombres, ap.apellidos, ap.documento`. |
+| `380` | `FROM grupo_integrantes gi` | Instrucción de ejecución en el contexto del script: `FROM grupo_integrantes gi`. |
+| `381` | `JOIN aprendices ap ON ap.id_aprendiz = gi.id_aprendiz` | Instrucción de ejecución en el contexto del script: `JOIN aprendices ap ON ap.id_aprendiz = gi.id_aprendiz`. |
+| `382` | `WHERE gi.id_grupo = :g"` | Instrucción de ejecución en el contexto del script: `WHERE gi.id_grupo = :g"`. |
+| `383` | ``);`` | Cierre de estructura de arreglo o invocación de función. |
+| `384` | `$stmtInts->execute([':g' => $idGrupo]);` | Ejecuta la sentencia SQL preparada vinculando los parámetros correspondientes: `$stmtInts->execute([':g' => $idGrupo]);`. |
+| `385` | `$ints = $stmtInts->fetchAll(PDO::FETCH_ASSOC);` | Obtiene todos los registros coincidentes de la consulta en un arreglo asociativo. |
+| `386` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `387` | `$insSnap = $this->db->prepare(` | Prepara de forma segura una sentencia SQL parametrizada contra inyección SQL: `$insSnap = $this->db->prepare(`. |
+| `388` | `"INSERT INTO evidencia_integrantes` | Instrucción de ejecución en el contexto del script: `"INSERT INTO evidencia_integrantes`. |
+| `389` | `(id_evidencia, id_aprendiz, nombres, apellidos, documento)` | Instrucción de ejecución en el contexto del script: `(id_evidencia, id_aprendiz, nombres, apellidos, documento)`. |
+| `390` | `VALUES (:ev, :ap, :nom, :ape, :doc)"` | Instrucción de ejecución en el contexto del script: `VALUES (:ev, :ap, :nom, :ape, :doc)"`. |
+| `391` | ``);`` | Cierre de estructura de arreglo o invocación de función. |
+| `392` | `foreach ($ints as $ap) {` | Estructura de control iterativa para recorrer colecciones o arreglos: `foreach ($ints as $ap) {`. |
+| `393` | `foreach (array_filter([$idEvAntes, $idEvDespues]) as $idEv) {` | Estructura de control iterativa para recorrer colecciones o arreglos: `foreach (array_filter([$idEvAntes, $idEvDespues]) as $idEv) {`. |
+| `394` | `$insSnap->execute([` | Ejecuta la sentencia SQL preparada vinculando los parámetros correspondientes: `$insSnap->execute([`. |
+| `395` | `':ev'  => $idEv,` | Instrucción de ejecución en el contexto del script: `':ev'  => $idEv,`. |
+| `396` | `':ap'  => $ap['id_aprendiz'],` | Instrucción de ejecución en el contexto del script: `':ap'  => $ap['id_aprendiz'],`. |
+| `397` | `':nom' => $ap['nombres'],` | Instrucción de ejecución en el contexto del script: `':nom' => $ap['nombres'],`. |
+| `398` | `':ape' => $ap['apellidos'],` | Instrucción de ejecución en el contexto del script: `':ape' => $ap['apellidos'],`. |
+| `399` | `':doc' => $ap['documento'],` | Instrucción de ejecución en el contexto del script: `':doc' => $ap['documento'],`. |
+| `400` | `]);` | Instrucción de ejecución en el contexto del script: `]);`. |
+| `401` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `402` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `403` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `404` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `405` | `// Marcar turno como cumplido y avanzar al siguiente turno en el ciclo` | Comentario explicativo en el código: `Marcar turno como cumplido y avanzar al siguiente turno en el ciclo`. |
+| `406` | `$modelTurnoInst = new Turno($this->db);` | Instrucción de ejecución en el contexto del script: `$modelTurnoInst = new Turno($this->db);`. |
+| `407` | `$modelTurnoInst->marcarCumplido($idTurno);` | Instrucción de ejecución en el contexto del script: `$modelTurnoInst->marcarCumplido($idTurno);`. |
+| `408` | `$modelTurnoInst->avanzarTurnoGrupo($idTurno, $idGrupo);` | Instrucción de ejecución en el contexto del script: `$modelTurnoInst->avanzarTurnoGrupo($idTurno, $idGrupo);`. |
+| `409` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `410` | `$_SESSION['alert'] = ['icon'=>'success','title'=>'¡Evidencias enviadas!'...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `411` | `} catch (Exception $e) {` | Instrucción de ejecución en el contexto del script: `} catch (Exception $e) {`. |
+| `412` | `$_SESSION['alert'] = ['icon'=>'error','title'=>'Error','text'=>'No se pu...` | Almacena mensaje flash SweetAlert2 en sesión para notificar al usuario tras la redirección. |
+| `413` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `414` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `415` | `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/dashboard/vocero_subir_evidencia.php"); exit;`. |
+| `416` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `417` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `418` | `// ── GET EVIDENCIA POR TURNO (JSON para el calendario) ───────────────────` | Comentario explicativo en el código: `── GET EVIDENCIA POR TURNO (JSON para el calendario) ───────────────────`. |
+| `419` | `public function getEvidenciaTurno(): void` | Declaración de método o función con su firma y parámetros: `public function getEvidenciaTurno(): void`. |
+| `420` | ``{`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `421` | `header('Content-Type: application/json');` | Emite cabecera HTTP de respuesta hacia el cliente: `header('Content-Type: application/json');`. |
+| `422` | `$this->requireVocero();` | Instrucción de ejecución en el contexto del script: `$this->requireVocero();`. |
+| `423` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `424` | `$idTurno = (int)($_GET['id_turno'] ?? 0);` | Instrucción de ejecución en el contexto del script: `$idTurno = (int)($_GET['id_turno'] ?? 0);`. |
+| `425` | `if (!$idTurno) { echo json_encode(['par' => null]); exit; }` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (!$idTurno) { echo json_encode(['par' => null]); exit; }`. |
+| `426` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `427` | `$stmt = $this->db->prepare(` | Prepara de forma segura una sentencia SQL parametrizada contra inyección SQL: `$stmt = $this->db->prepare(`. |
+| `428` | `"SELECT tipo, ruta_archivo AS ruta, observaciones` | Instrucción de ejecución en el contexto del script: `"SELECT tipo, ruta_archivo AS ruta, observaciones`. |
+| `429` | `FROM evidencias` | Instrucción de ejecución en el contexto del script: `FROM evidencias`. |
+| `430` | `WHERE id_turno = :id` | Instrucción de ejecución en el contexto del script: `WHERE id_turno = :id`. |
+| `431` | `AND tipo IN ('antes','despues')` | Instrucción de ejecución en el contexto del script: `AND tipo IN ('antes','despues')`. |
+| `432` | `ORDER BY tipo ASC"` | Instrucción de ejecución en el contexto del script: `ORDER BY tipo ASC"`. |
+| `433` | ``);`` | Cierre de estructura de arreglo o invocación de función. |
+| `434` | `$stmt->execute([':id' => $idTurno]);` | Ejecuta la sentencia SQL preparada vinculando los parámetros correspondientes: `$stmt->execute([':id' => $idTurno]);`. |
+| `435` | `$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);` | Obtiene todos los registros coincidentes de la consulta en un arreglo asociativo. |
+| `436` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `437` | `$par = ['antes' => null, 'despues' => null];` | Instrucción de ejecución en el contexto del script: `$par = ['antes' => null, 'despues' => null];`. |
+| `438` | `$obs = '';` | Instrucción de ejecución en el contexto del script: `$obs = '';`. |
+| `439` | `foreach ($rows as $r) {` | Estructura de control iterativa para recorrer colecciones o arreglos: `foreach ($rows as $r) {`. |
+| `440` | `$par[$r['tipo']] = ['ruta' => $r['ruta']];` | Instrucción de ejecución en el contexto del script: `$par[$r['tipo']] = ['ruta' => $r['ruta']];`. |
+| `441` | `if ($r['observaciones']) $obs = $r['observaciones'];` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if ($r['observaciones']) $obs = $r['observaciones'];`. |
+| `442` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `443` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `444` | `echo json_encode(['par' => $par, 'observaciones' => $obs]);` | Instrucción de ejecución en el contexto del script: `echo json_encode(['par' => $par, 'observaciones' => $obs]);`. |
+| `445` | `exit;` | Finaliza la ejecución de la función o script. |
+| `446` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `447` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `448` | `// ── GET EVIDENCIA (JSON) — devuelve el par antes/después de un grupo ────` | Comentario explicativo en el código: `── GET EVIDENCIA (JSON) — devuelve el par antes/después de un grupo ────`. |
+| `449` | `public function getEvidencia(): void` | Declaración de método o función con su firma y parámetros: `public function getEvidencia(): void`. |
+| `450` | ``{`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `451` | `header('Content-Type: application/json');` | Emite cabecera HTTP de respuesta hacia el cliente: `header('Content-Type: application/json');`. |
+| `452` | `$this->requireVocero();` | Instrucción de ejecución en el contexto del script: `$this->requireVocero();`. |
+| `453` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `454` | `$idGrupo = (int)($_GET['id_grupo'] ?? 0);` | Instrucción de ejecución en el contexto del script: `$idGrupo = (int)($_GET['id_grupo'] ?? 0);`. |
+| `455` | `$modelEv = new Evidencia($this->db);` | Instrucción de ejecución en el contexto del script: `$modelEv = new Evidencia($this->db);`. |
+| `456` | `$rows    = $modelEv->obtenerTodasPorGrupo($idGrupo);` | Instrucción de ejecución en el contexto del script: `$rows    = $modelEv->obtenerTodasPorGrupo($idGrupo);`. |
+| `457` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `458` | `if (empty($rows)) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (empty($rows)) {`. |
+| `459` | `echo json_encode(['par' => null]); exit;` | Instrucción de ejecución en el contexto del script: `echo json_encode(['par' => null]); exit;`. |
+| `460` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `461` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `462` | `// Buscar datos del módulo/grupo en la primera fila` | Comentario explicativo en el código: `Buscar datos del módulo/grupo en la primera fila`. |
+| `463` | `$stmt = $this->db->prepare(` | Prepara de forma segura una sentencia SQL parametrizada contra inyección SQL: `$stmt = $this->db->prepare(`. |
+| `464` | `"SELECT m.nombre AS modulo, g.nombre_grupo AS grupo, g.fecha_limpieza` | Instrucción de ejecución en el contexto del script: `"SELECT m.nombre AS modulo, g.nombre_grupo AS grupo, g.fecha_limpieza`. |
+| `465` | `FROM grupos g` | Instrucción de ejecución en el contexto del script: `FROM grupos g`. |
+| `466` | `JOIN asignaciones a ON a.id_asignacion = g.id_asignacion` | Instrucción de ejecución en el contexto del script: `JOIN asignaciones a ON a.id_asignacion = g.id_asignacion`. |
+| `467` | `JOIN modulos m ON m.id_modulo = a.id_modulo` | Instrucción de ejecución en el contexto del script: `JOIN modulos m ON m.id_modulo = a.id_modulo`. |
+| `468` | `WHERE g.id_grupo = :id LIMIT 1"` | Instrucción de ejecución en el contexto del script: `WHERE g.id_grupo = :id LIMIT 1"`. |
+| `469` | ``);`` | Cierre de estructura de arreglo o invocación de función. |
+| `470` | `$stmt->execute([':id' => $idGrupo]);` | Ejecuta la sentencia SQL preparada vinculando los parámetros correspondientes: `$stmt->execute([':id' => $idGrupo]);`. |
+| `471` | `$meta = $stmt->fetch(PDO::FETCH_ASSOC);` | Recupera una única fila o registro resultante de la consulta. |
+| `472` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `473` | `$par = ['antes' => null, 'despues' => null];` | Instrucción de ejecución en el contexto del script: `$par = ['antes' => null, 'despues' => null];`. |
+| `474` | `foreach ($rows as $r) {` | Estructura de control iterativa para recorrer colecciones o arreglos: `foreach ($rows as $r) {`. |
+| `475` | `$tipo = $r['tipo'] ?? 'antes';` | Instrucción de ejecución en el contexto del script: `$tipo = $r['tipo'] ?? 'antes';`. |
+| `476` | `$par[$tipo] = [` | Instrucción de ejecución en el contexto del script: `$par[$tipo] = [`. |
+| `477` | `'ruta'  => $r['ruta_archivo'],` | Instrucción de ejecución en el contexto del script: `'ruta'  => $r['ruta_archivo'],`. |
+| `478` | `'fecha' => date('d/m/Y H:i', strtotime($r['fecha_subida'])),` | Instrucción de ejecución en el contexto del script: `'fecha' => date('d/m/Y H:i', strtotime($r['fecha_subida'])),`. |
+| `479` | ``];`` | Cierre de estructura de arreglo o invocación de función. |
+| `480` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `481` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `482` | `echo json_encode([` | Instrucción de ejecución en el contexto del script: `echo json_encode([`. |
+| `483` | `'par'    => $par,` | Instrucción de ejecución en el contexto del script: `'par'    => $par,`. |
+| `484` | `'grupo'  => $meta['grupo']          ?? '',` | Instrucción de ejecución en el contexto del script: `'grupo'  => $meta['grupo']          ?? '',`. |
+| `485` | `'modulo' => $meta['modulo']          ?? '',` | Instrucción de ejecución en el contexto del script: `'modulo' => $meta['modulo']          ?? '',`. |
+| `486` | `'fecha'  => $meta['fecha_limpieza']` | Instrucción de ejecución en el contexto del script: `'fecha'  => $meta['fecha_limpieza']`. |
+| `487` | `? date('d/m/Y', strtotime($meta['fecha_limpieza']))` | Instrucción de ejecución en el contexto del script: `? date('d/m/Y', strtotime($meta['fecha_limpieza']))`. |
+| `488` | `: '',` | Instrucción de ejecución en el contexto del script: `: '',`. |
+| `489` | `]);` | Instrucción de ejecución en el contexto del script: `]);`. |
+| `490` | `exit;` | Finaliza la ejecución de la función o script. |
+| `491` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `492` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `493` | `// ── GET INTEGRANTES IDS (JSON para edición) ─────────────────────────────` | Comentario explicativo en el código: `── GET INTEGRANTES IDS (JSON para edición) ─────────────────────────────`. |
+| `494` | `public function getIntegrantesIds(): void` | Declaración de método o función con su firma y parámetros: `public function getIntegrantesIds(): void`. |
+| `495` | ``{`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `496` | `header('Content-Type: application/json');` | Emite cabecera HTTP de respuesta hacia el cliente: `header('Content-Type: application/json');`. |
+| `497` | `$this->requireVocero();` | Instrucción de ejecución en el contexto del script: `$this->requireVocero();`. |
+| `498` | `$idGrupo = (int)($_GET['id_grupo'] ?? 0);` | Instrucción de ejecución en el contexto del script: `$idGrupo = (int)($_GET['id_grupo'] ?? 0);`. |
+| `499` | `$stmt    = $this->db->prepare(` | Prepara de forma segura una sentencia SQL parametrizada contra inyección SQL: `$stmt    = $this->db->prepare(`. |
+| `500` | `"SELECT id_aprendiz FROM grupo_integrantes WHERE id_grupo = :id"` | Instrucción de ejecución en el contexto del script: `"SELECT id_aprendiz FROM grupo_integrantes WHERE id_grupo = :id"`. |
+| `501` | ``);`` | Cierre de estructura de arreglo o invocación de función. |
+| `502` | `$stmt->execute([':id' => $idGrupo]);` | Ejecuta la sentencia SQL preparada vinculando los parámetros correspondientes: `$stmt->execute([':id' => $idGrupo]);`. |
+| `503` | `echo json_encode(array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'id_apr...` | Obtiene todos los registros coincidentes de la consulta en un arreglo asociativo. |
+| `504` | `exit;` | Finaliza la ejecución de la función o script. |
+| `505` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `506` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `507` | `// ── HELPERS ────────────────────────────────────────────────────────────` | Comentario explicativo en el código: `── HELPERS ────────────────────────────────────────────────────────────`. |
+| `508` | `private function requireVocero(): void` | Declaración de método o función con su firma y parámetros: `private function requireVocero(): void`. |
+| `509` | ``{`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `510` | `if (!isset($_SESSION['usuario']) \|\| (int)$_SESSION['usuario']['rol'] !...` | Verifica autenticación y rol del usuario; redirige al login si no tiene permisos. |
+| `511` | `header("Location: ../views/usuarios/login.php"); exit;` | Emite cabecera HTTP de redirección en el navegador y detiene la ejecución: `header("Location: ../views/usuarios/login.php"); exit;`. |
+| `512` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `513` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `514` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `515` | `private function getIdVocero(): int` | Declaración de método o función con su firma y parámetros: `private function getIdVocero(): int`. |
+| `516` | ``{`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `517` | `// Buscar el id_vocero del usuario en sesión` | Comentario explicativo en el código: `Buscar el id_vocero del usuario en sesión`. |
+| `518` | `$stmt = $this->db->prepare(` | Prepara de forma segura una sentencia SQL parametrizada contra inyección SQL: `$stmt = $this->db->prepare(`. |
+| `519` | `"SELECT id_vocero FROM voceros WHERE id_usuario = :id AND activo = 1 LIM...` | Instrucción de ejecución en el contexto del script: `"SELECT id_vocero FROM voceros WHERE id_usuario = :id AND activo = 1 LIM...`. |
+| `520` | ``);`` | Cierre de estructura de arreglo o invocación de función. |
+| `521` | `$stmt->execute([':id' => $_SESSION['usuario']['id_usuario']]);` | Ejecuta la sentencia SQL preparada vinculando los parámetros correspondientes: `$stmt->execute([':id' => $_SESSION['usuario']['id_usuario']]);`. |
+| `522` | `$row = $stmt->fetch(PDO::FETCH_ASSOC);` | Recupera una única fila o registro resultante de la consulta. |
+| `523` | `return $row ? (int)$row['id_vocero'] : 0;` | Instrucción de retorno que finaliza la ejecución entregando el resultado: `return $row ? (int)$row['id_vocero'] : 0;`. |
+| `524` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `525` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `526` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `527` | `// ── Dispatcher ───────────────────────────────────────────────────────...` | Comentario explicativo en el código: `── Dispatcher ────────────────────────────────────────────────────────────`. |
+| `528` | `if (basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'])) {` | Evaluación condicional `if`: ejecuta el bloque si la condición se cumple: `if (basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'])) {`. |
+| `529` | `$controller = new VoceroController();` | Instrucción de ejecución en el contexto del script: `$controller = new VoceroController();`. |
+| `530` | `$accion     = $_POST['accion'] ?? $_GET['accion'] ?? '';` | Instrucción de ejecución en el contexto del script: `$accion     = $_POST['accion'] ?? $_GET['accion'] ?? '';`. |
+| `531` | `*(Línea en blanco)*` | Línea en blanco para organización visual y legibilidad. |
+| `532` | `match ($accion) {` | Estructura de coincidencia condicional `match` para despacho de acciones del controlador. |
+| `533` | `'guardar_grupo'   => $controller->guardarGrupo(),` | Instrucción de ejecución en el contexto del script: `'guardar_grupo'   => $controller->guardarGrupo(),`. |
+| `534` | `'editar_grupo'    => $controller->editarGrupo(),` | Instrucción de ejecución en el contexto del script: `'editar_grupo'    => $controller->editarGrupo(),`. |
+| `535` | `'eliminar_grupo'  => $controller->eliminarGrupo(),` | Instrucción de ejecución en el contexto del script: `'eliminar_grupo'  => $controller->eliminarGrupo(),`. |
+| `536` | `'subir_evidencia' => $controller->subirEvidencia(),` | Instrucción de ejecución en el contexto del script: `'subir_evidencia' => $controller->subirEvidencia(),`. |
+| `537` | `'subir_evidencia_turno' => $controller->subirEvidenciaTurno(),` | Instrucción de ejecución en el contexto del script: `'subir_evidencia_turno' => $controller->subirEvidenciaTurno(),`. |
+| `538` | `'get_evidencia'         => $controller->getEvidencia(),` | Instrucción de ejecución en el contexto del script: `'get_evidencia'         => $controller->getEvidencia(),`. |
+| `539` | `'get_evidencia_turno'   => $controller->getEvidenciaTurno(),` | Instrucción de ejecución en el contexto del script: `'get_evidencia_turno'   => $controller->getEvidenciaTurno(),`. |
+| `540` | `'get_integrantes_ids'   => $controller->getIntegrantesIds(),` | Instrucción de ejecución en el contexto del script: `'get_integrantes_ids'   => $controller->getIntegrantesIds(),`. |
+| `541` | `default           => header("Location: ../views/dashboard/vocero_dashboa...` | Emite cabecera HTTP de respuesta hacia el cliente: `default           => header("Location: ../views/dashboard/vocero_dashboa...`. |
+| `542` | `};` | Instrucción de ejecución en el contexto del script: `};`. |
+| `543` | ``}`` | Delimitador de apertura/cierre de bloque de código (clase, función, condición o bucle). |
+| `544` | ``?>`` | Cierre de la etiqueta PHP para alternar a salida HTML o fin del archivo. |
 
 ---
 
@@ -440,3 +567,7 @@ A continuación se presenta cada línea de código numerada de forma consecutiva
 
 El archivo `VoceroController.php` cumple un rol indispensable en `controllers/VoceroController.php`. 
 Controlador para el rol Vocero. Permite registrar y editar grupos de limpieza de la ficha, asignar aprendices y subir evidencias fotográficas de los turnos. Garantiza la robustez, el orden y la estabilidad de la arquitectura del proyecto `systemLimpieza`.
+
+---
+
+Generado automáticamente para el repositorio [johanrepizo/LimpiezaDeModulos](https://github.com/johanrepizo/LimpiezaDeModulos).
