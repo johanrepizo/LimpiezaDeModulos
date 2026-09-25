@@ -556,6 +556,40 @@ class AdminController
         $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$';
         return substr(str_shuffle($chars), 0, 10);
     }
+
+    // ── GET EVIDENCIA POR TURNO (JSON para el calendario) ───────────────────
+    public function getEvidenciaTurno(): void
+    {
+        header('Content-Type: application/json');
+        if (!isset($_SESSION['usuario']) || (int)$_SESSION['usuario']['rol'] !== 1) {
+            http_response_code(403);
+            echo json_encode(['error' => 'No autorizado']);
+            exit;
+        }
+
+        $idTurno = (int)($_GET['id_turno'] ?? 0);
+        if (!$idTurno) { echo json_encode(['par' => null]); exit; }
+
+        $stmt = $this->db->prepare(
+            "SELECT tipo, ruta_archivo AS ruta, observaciones
+             FROM evidencias
+             WHERE id_turno = :id
+               AND tipo IN ('antes','despues')
+             ORDER BY tipo ASC"
+        );
+        $stmt->execute([':id' => $idTurno]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $par = ['antes' => null, 'despues' => null];
+        $obs = '';
+        foreach ($rows as $r) {
+            $par[$r['tipo']] = ['ruta' => $r['ruta']];
+            if (!empty($r['observaciones'])) $obs = $r['observaciones'];
+        }
+
+        echo json_encode(['par' => $par, 'observaciones' => $obs]);
+        exit;
+    }
 }
 
 // ── Dispatcher ────────────────────────────────────────────────────────────
@@ -576,6 +610,7 @@ if (basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'])) {
         'activar_vocero'        => $controller->activarVocero(),
         'desactivar_vocero'     => $controller->desactivarVocero(),
         'reactivar_vocero'      => $controller->reactivarVocero(),
+        'get_evidencia_turno'   => $controller->getEvidenciaTurno(),
         default              => header("Location: ../views/dashboard/admin_dashboard.php"),
     };
 }
